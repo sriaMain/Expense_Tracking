@@ -17,46 +17,33 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast.error('Please enter both email and password');
       return;
     }
 
     dispatch(loginStart());
-
+    const payload = {
+      email,
+      password,
+    };
     try {
-      // In production, this would call your API
-      // const response = await axiosInstance.post('/auth/login', { email, password });
-      
-      // Demo login - simulating successful authentication
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      if (email === 'admin@company.com' && password === 'admin123') {
-        dispatch(loginSuccess({
-          user: {
-            id: '1',
-            email: 'admin@company.com',
-            username: 'admin',
-            fullName: 'John Administrator',
-          },
-          token: 'demo-jwt-token-12345',
-        }));
-        toast.success('Welcome back!');
-        navigate('/dashboard');
-      } else {
-        dispatch(loginFailure('Invalid credentials'));
-        toast.error('Invalid email or password');
-      }
-    } catch (err) {
-      dispatch(loginFailure('Authentication failed. Please try again.'));
-      toast.error('Authentication failed');
+      const response = await axiosInstance.post('login/', payload);
+
+      dispatch(loginSuccess(response.data));
+      toast.success('Welcome back!');
+      navigate('/dashboard');
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.detail || err.response?.data?.message || 'Authentication failed. Please try again.';
+      dispatch(loginFailure(errorMessage));
+      toast.error(errorMessage);
     }
   };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-6">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
@@ -88,7 +75,7 @@ const Login = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="input-field"
-                placeholder="admin@company.com"
+                placeholder="Enter your email"
                 disabled={isLoading}
               />
             </div>
@@ -137,12 +124,6 @@ const Login = () => {
               )}
             </button>
           </form>
-
-          <div className="mt-6 p-4 bg-muted rounded-lg">
-            <p className="text-xs text-muted-foreground mb-2">Demo Credentials:</p>
-            <p className="text-sm text-foreground">Email: admin@company.com</p>
-            <p className="text-sm text-foreground">Password: admin123</p>
-          </div>
         </div>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
