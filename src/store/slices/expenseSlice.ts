@@ -11,10 +11,11 @@ export interface Expense {
   id: string;
   vendorId: string;
   vendorName: string;
-  amount: number;
+  actualAmount: number;
+  paidAmount: number;
   reason: string;
   date: string;
-  status: 'pending' | 'paid' | 'cancelled';
+  status: 'pending' | 'paid';
 }
 
 interface ExpenseState {
@@ -27,12 +28,12 @@ interface ExpenseState {
 
 const initialState: ExpenseState = {
   expenses: [
-    { id: '1', vendorId: '1', vendorName: 'Tech Solutions Inc', amount: 5400, reason: 'Software License Renewal', date: '2024-01-15', status: 'paid' },
-    { id: '2', vendorId: '2', vendorName: 'Office Supplies Co', amount: 1250, reason: 'Monthly Office Supplies', date: '2024-01-12', status: 'paid' },
-    { id: '3', vendorId: '3', vendorName: 'Cloud Services Ltd', amount: 3200, reason: 'Cloud Infrastructure', date: '2024-01-10', status: 'pending' },
-    { id: '4', vendorId: '1', vendorName: 'Tech Solutions Inc', amount: 2800, reason: 'Hardware Maintenance', date: '2024-01-08', status: 'paid' },
-    { id: '5', vendorId: '4', vendorName: 'Marketing Agency', amount: 8500, reason: 'Q1 Marketing Campaign', date: '2024-01-05', status: 'paid' },
-    { id: '6', vendorId: '2', vendorName: 'Office Supplies Co', amount: 890, reason: 'Printer Cartridges', date: '2024-01-03', status: 'paid' },
+    { id: '1', vendorId: '1', vendorName: 'Tech Solutions Inc', actualAmount: 5400, paidAmount: 5400, reason: 'Software License Renewal', date: '2024-01-15', status: 'paid' },
+    { id: '2', vendorId: '2', vendorName: 'Office Supplies Co', actualAmount: 1250, paidAmount: 1250, reason: 'Monthly Office Supplies', date: '2024-01-12', status: 'paid' },
+    { id: '3', vendorId: '3', vendorName: 'Cloud Services Ltd', actualAmount: 3200, paidAmount: 2000, reason: 'Cloud Infrastructure', date: '2024-01-10', status: 'pending' },
+    { id: '4', vendorId: '1', vendorName: 'Tech Solutions Inc', actualAmount: 2800, paidAmount: 2800, reason: 'Hardware Maintenance', date: '2024-01-08', status: 'paid' },
+    { id: '5', vendorId: '4', vendorName: 'Marketing Agency', actualAmount: 8500, paidAmount: 8500, reason: 'Q1 Marketing Campaign', date: '2024-01-05', status: 'paid' },
+    { id: '6', vendorId: '2', vendorName: 'Office Supplies Co', actualAmount: 890, paidAmount: 890, reason: 'Printer Cartridges', date: '2024-01-03', status: 'paid' },
   ],
   vendors: [
     { id: '1', name: 'Tech Solutions Inc', email: 'billing@techsolutions.com', phone: '+1 555-0101' },
