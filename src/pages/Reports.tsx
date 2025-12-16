@@ -1,28 +1,48 @@
-import { useState } from 'react';
-import { useAppSelector } from '@/hooks/useAppDispatch';
-import { Download, FileSpreadsheet, FileText, Calendar } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useAppSelector, useAppDispatch } from '@/hooks/useAppDispatch';
+import { fetchExpenses } from '@/store/slices/expenseSlice';
+import { fetchEmployees } from '@/store/slices/employeeSlice';
+import { Download, FileSpreadsheet, FileText, Calendar, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Reports = () => {
-  const { expenses, vendors } = useAppSelector((state) => state.expense);
+  const dispatch = useAppDispatch();
+  const { expenses, isLoading: expensesLoading } = useAppSelector((state) => state.expense);
+  const { employees, isLoading: employeesLoading } = useAppSelector((state) => state.employee);
+
   const [dateRange, setDateRange] = useState<'monthly' | 'custom'>('monthly');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  useEffect(() => {
+    dispatch(fetchExpenses());
+    dispatch(fetchEmployees());
+  }, [dispatch]);
+
+  // Helper to get employee name
+  const getEmployeeName = (id: number) => employees.find(e => e.id === id)?.full_name || 'Unknown Employee';
+
   // Filter expenses based on date range
   const getFilteredExpenses = () => {
     if (dateRange === 'monthly') {
-      return expenses.filter(exp => exp.date.startsWith(selectedMonth));
+      return expenses.filter(exp => {
+        const date = exp.created_at || exp.updated_at || '';
+        return date.startsWith(selectedMonth);
+      });
     } else if (startDate && endDate) {
-      return expenses.filter(exp => exp.date >= startDate && exp.date <= endDate);
+      return expenses.filter(exp => {
+        const date = exp.created_at || exp.updated_at || '';
+        // Simple string comparison for ISO dates works for YYYY-MM-DD
+        return date >= startDate && date <= endDate;
+      });
     }
     return expenses;
   };
 
   const filteredExpenses = getFilteredExpenses();
-  const totalAmount = filteredExpenses.reduce((sum, exp) => sum + exp.actualAmount, 0);
-  const paidAmount = filteredExpenses.reduce((sum, exp) => sum + exp.paidAmount, 0);
+  const totalAmount = filteredExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_requested), 0);
+  const paidAmount = filteredExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_paid), 0);
   const pendingAmount = totalAmount - paidAmount;
 
   const handleDownloadExcel = () => {
@@ -35,19 +55,28 @@ const Reports = () => {
     toast.success('PDF report download initiated');
   };
 
-  // Vendor summary
-  const vendorSummary = vendors.map(vendor => {
-    const vendorExpenses = filteredExpenses.filter(exp => exp.vendorId === vendor.id);
+  // Vendor (Employee) summary
+  const vendorSummary = employees.map(emp => {
+    const empExpenses = filteredExpenses.filter(exp => exp.employee === emp.id);
     return {
-      ...vendor,
-      total: vendorExpenses.reduce((sum, exp) => sum + exp.actualAmount, 0),
-      paid: vendorExpenses.reduce((sum, exp) => sum + exp.paidAmount, 0),
-      count: vendorExpenses.length,
+      id: emp.id,
+      name: emp.full_name,
+      total: empExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_requested), 0),
+      paid: empExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_paid), 0),
+      count: empExpenses.length,
     };
   }).filter(v => v.count > 0);
 
+  if (expensesLoading || employeesLoading) {
+    return (
+      <div className="flex items-center justify-center h-[50vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in pb-20">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">Reports</h1>
@@ -71,26 +100,24 @@ const Reports = () => {
           <Calendar className="w-5 h-5 text-primary" />
           Date Range
         </h2>
-        
+
         <div className="flex flex-wrap gap-3 sm:gap-4">
           <div className="flex gap-2">
             <button
               onClick={() => setDateRange('monthly')}
-              className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                dateRange === 'monthly' 
-                  ? 'bg-primary text-primary-foreground' 
+              className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-lg transition-colors ${dateRange === 'monthly'
+                  ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }`}
+                }`}
             >
               Monthly
             </button>
             <button
               onClick={() => setDateRange('custom')}
-              className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                dateRange === 'custom' 
-                  ? 'bg-primary text-primary-foreground' 
+              className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-lg transition-colors ${dateRange === 'custom'
+                  ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }`}
+                }`}
             >
               Custom
             </button>
@@ -135,21 +162,21 @@ const Reports = () => {
         <div className="stat-card">
           <p className="text-sm text-muted-foreground mb-2">Paid Amount</p>
           <p className="text-xl sm:text-2xl font-bold text-success">${paidAmount.toLocaleString()}</p>
-          <p className="text-xs text-muted-foreground mt-1">{filteredExpenses.filter(e => e.status === 'paid').length} fully paid</p>
+          <p className="text-xs text-muted-foreground mt-1">{filteredExpenses.filter(e => e.status === 'PAID').length} fully paid</p>
         </div>
         <div className="stat-card">
           <p className="text-sm text-muted-foreground mb-2">Pending Amount</p>
           <p className="text-xl sm:text-2xl font-bold text-warning">${pendingAmount.toLocaleString()}</p>
-          <p className="text-xs text-muted-foreground mt-1">{filteredExpenses.filter(e => e.status === 'pending').length} pending</p>
+          <p className="text-xs text-muted-foreground mt-1">{filteredExpenses.filter(e => e.status !== 'PAID').length} pending/partial</p>
         </div>
       </div>
 
       {/* Vendor Summary */}
       <div className="card-elevated p-4 sm:p-6 mb-6 sm:mb-8">
-        <h2 className="section-title">Vendor Summary</h2>
+        <h2 className="section-title">Employee/Vendor Summary</h2>
         <div className="space-y-3 sm:space-y-4">
           {vendorSummary.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No vendor data for selected period</p>
+            <p className="text-muted-foreground text-center py-8">No data for selected period</p>
           ) : (
             vendorSummary.map((vendor) => (
               <div key={vendor.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 bg-muted/50 rounded-lg gap-2">
@@ -183,9 +210,8 @@ const Reports = () => {
             <thead className="bg-muted">
               <tr>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Date</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Vendor</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Reason</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Actual</th>
+                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Employee/Vendor</th>
+                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Requested</th>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Paid</th>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Status</th>
               </tr>
@@ -193,25 +219,25 @@ const Reports = () => {
             <tbody>
               {filteredExpenses.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={5} className="py-12 text-center text-muted-foreground">
                     No transactions found for selected period
                   </td>
                 </tr>
               ) : (
                 filteredExpenses.map((expense) => (
                   <tr key={expense.id} className="table-row-hover border-b border-border last:border-0">
-                    <td className="py-4 px-6 text-sm text-muted-foreground">{expense.date}</td>
-                    <td className="py-4 px-6 text-sm font-medium text-foreground">{expense.vendorName}</td>
-                    <td className="py-4 px-6 text-sm text-muted-foreground">{expense.reason}</td>
-                    <td className="py-4 px-6 text-sm font-semibold text-foreground">${expense.actualAmount.toLocaleString()}</td>
-                    <td className="py-4 px-6 text-sm font-semibold text-foreground">${expense.paidAmount.toLocaleString()}</td>
+                    <td className="py-4 px-6 text-sm text-muted-foreground">{expense.created_at?.split('T')[0]}</td>
+                    <td className="py-4 px-6 text-sm font-medium text-foreground">{getEmployeeName(expense.employee)}</td>
+                    <td className="py-4 px-6 text-sm font-semibold text-foreground">${parseFloat(expense.amount_requested).toLocaleString()}</td>
+                    <td className="py-4 px-6 text-sm font-semibold text-foreground">${parseFloat(expense.amount_paid).toLocaleString()}</td>
                     <td className="py-4 px-6">
-                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
-                        expense.status === 'paid' 
-                          ? 'bg-success/10 text-success' 
-                          : 'bg-warning/10 text-warning'
-                      }`}>
-                        {expense.status === 'paid' ? 'Paid' : 'Pending'}
+                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
+                          ? 'bg-success/10 text-success'
+                          : expense.status === 'PARTIAL'
+                            ? 'bg-warning/10 text-warning'
+                            : 'bg-destructive/10 text-destructive'
+                        }`}>
+                        {expense.status}
                       </span>
                     </td>
                   </tr>
@@ -234,28 +260,28 @@ const Reports = () => {
             <div key={expense.id} className="card-elevated p-4">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="font-medium text-foreground">{expense.vendorName}</p>
-                  <p className="text-sm text-muted-foreground">{expense.reason}</p>
+                  <p className="font-medium text-foreground">{getEmployeeName(expense.employee)}</p>
                 </div>
-                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
-                  expense.status === 'paid' 
-                    ? 'bg-success/10 text-success' 
-                    : 'bg-warning/10 text-warning'
-                }`}>
-                  {expense.status === 'paid' ? 'Paid' : 'Pending'}
+                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
+                    ? 'bg-success/10 text-success'
+                    : expense.status === 'PARTIAL'
+                      ? 'bg-warning/10 text-warning'
+                      : 'bg-destructive/10 text-destructive'
+                  }`}>
+                  {expense.status}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
-                  <p className="text-muted-foreground">Actual</p>
-                  <p className="font-semibold text-foreground">${expense.actualAmount.toLocaleString()}</p>
+                  <p className="text-muted-foreground">Requested</p>
+                  <p className="font-semibold text-foreground">${parseFloat(expense.amount_requested).toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Paid</p>
-                  <p className="font-semibold text-foreground">${expense.paidAmount.toLocaleString()}</p>
+                  <p className="font-semibold text-foreground">${parseFloat(expense.amount_paid).toLocaleString()}</p>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">{expense.date}</p>
+              <p className="text-xs text-muted-foreground mt-2">{expense.created_at?.split('T')[0]}</p>
             </div>
           ))
         )}

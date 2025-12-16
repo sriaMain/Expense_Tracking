@@ -1,97 +1,198 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/hooks/useAppDispatch';
-import { addExpense, addVendor } from '@/store/slices/expenseSlice';
-import { Plus, X, DollarSign } from 'lucide-react';
+import { fetchExpenses, addExpense, makePayment, fetchPayments, clearPayments } from '@/store/slices/expenseSlice';
+import { fetchEmployees, addEmployee } from '@/store/slices/employeeSlice';
+import { fetchCategories, addCategory } from '@/store/slices/categorySlice';
+import { Plus, X, IndianRupee, Loader2, Receipt, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
 const ExpenseRecords = () => {
   const dispatch = useAppDispatch();
-  const { expenses, vendors, selectedMonth } = useAppSelector((state) => state.expense);
+  const { expenses, payments, isLoading: expensesLoading, paymentsLoading, selectedMonth } = useAppSelector((state) => state.expense);
+  const { employees, isLoading: employeesLoading } = useAppSelector((state) => state.employee);
+  const { categories, isLoading: categoriesLoading } = useAppSelector((state) => state.category);
+
   const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [showVendorForm, setShowVendorForm] = useState(false);
+  const [showEmployeeForm, setShowEmployeeForm] = useState(false);
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
 
-  // Form states
-  const [selectedVendor, setSelectedVendor] = useState('');
-  const [actualAmount, setActualAmount] = useState('');
-  const [paidAmount, setPaidAmount] = useState('');
-  const [expenseReason, setExpenseReason] = useState('');
-  const [vendorName, setVendorName] = useState('');
-  const [vendorEmail, setVendorEmail] = useState('');
-  const [vendorPhone, setVendorPhone] = useState('');
+  // Expense Form states
+  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [amountRequested, setAmountRequested] = useState('');
+  const [amountPaid, setAmountPaid] = useState('');
 
-  // Filter expenses by month
-  const filteredExpenses = expenses.filter(exp => exp.date.startsWith(selectedMonth));
-  const totalPaid = filteredExpenses.reduce((sum, exp) => sum + exp.paidAmount, 0);
+  // Employee Form states
+  const [empFullName, setEmpFullName] = useState('');
+  const [empDepartment, setEmpDepartment] = useState('');
+  const [empDesignation, setEmpDesignation] = useState('');
+  const [empJoinedAt, setEmpJoinedAt] = useState('');
 
-  const handleAddExpense = () => {
-    if (!selectedVendor || !actualAmount || !paidAmount || !expenseReason) {
+  // Category Form states
+  const [categoryName, setCategoryName] = useState('');
+
+  // Payment Modal state
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+
+  // Details Modal state
+  const [selectedExpenseId, setSelectedExpenseId] = useState<number | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+
+  useEffect(() => {
+    dispatch(fetchExpenses());
+    dispatch(fetchEmployees());
+    dispatch(fetchCategories());
+  }, [dispatch]);
+
+  // Helper to get names from IDs
+  const getEmployeeName = (id: number) => employees.find(e => e.id === id)?.full_name || 'Unknown Employee';
+  const getCategoryName = (id: number) => categories.find(c => c.id === id)?.name || 'Unknown Category';
+
+  const handleRowClick = (expenseId: number) => {
+    setSelectedExpenseId(expenseId);
+    dispatch(clearPayments());
+    dispatch(fetchPayments(expenseId));
+    setShowDetailsModal(true);
+  };
+
+  const handleAddExpense = async () => {
+    if (!selectedEmployee || !selectedCategory || !amountRequested) {
       toast.error('Please fill in all fields');
       return;
     }
 
-    const vendor = vendors.find(v => v.id === selectedVendor);
-    if (!vendor) return;
+    try {
+      const result = await dispatch(addExpense({
+        employee: parseInt(selectedEmployee),
+        category: parseInt(selectedCategory),
+        amount_requested: parseFloat(amountRequested),
+      })).unwrap();
 
-    const actual = parseFloat(actualAmount);
-    const paid = parseFloat(paidAmount);
-    const status = actual === paid ? 'paid' : 'pending';
+      // If there's an initial amount paid, record it immediately
+      if (amountPaid && parseFloat(amountPaid) > 0) {
+        await dispatch(makePayment({
+          expense: result.id,
+          amount: parseFloat(amountPaid),
+        })).unwrap();
+      }
 
-    dispatch(addExpense({
-      vendorId: selectedVendor,
-      vendorName: vendor.name,
-      actualAmount: actual,
-      paidAmount: paid,
-      reason: expenseReason,
-      date: new Date().toISOString().split('T')[0],
-      status,
-    }));
-
-    toast.success('Expense added successfully');
-    setShowExpenseModal(false);
-    resetExpenseForm();
+      toast.success('Expense added successfully');
+      setShowExpenseModal(false);
+      resetExpenseForm();
+    } catch (error) {
+      toast.error((error as string) || 'Failed to add expense');
+    }
   };
 
-  const handleAddVendor = () => {
-    if (!vendorName || !vendorEmail || !vendorPhone) {
-      toast.error('Please fill in all vendor details');
+  const handleAddEmployee = async () => {
+    if (!empFullName || !empDepartment || !empDesignation) {
+      toast.error('Please fill in all employee details');
       return;
     }
 
-    dispatch(addVendor({
-      name: vendorName,
-      email: vendorEmail,
-      phone: vendorPhone,
-    }));
+    try {
+      const result = await dispatch(addEmployee({
+        full_name: empFullName,
+        department: empDepartment,
+        designation: empDesignation,
+        joined_at: empJoinedAt,
+      })).unwrap();
 
-    toast.success('Vendor created successfully');
-    setShowVendorForm(false);
-    resetVendorForm();
-  };
-
-  const resetExpenseForm = () => {
-    setSelectedVendor('');
-    setActualAmount('');
-    setPaidAmount('');
-    setExpenseReason('');
-  };
-
-  const resetVendorForm = () => {
-    setVendorName('');
-    setVendorEmail('');
-    setVendorPhone('');
-  };
-
-  const handleVendorChange = (value: string) => {
-    if (value === 'create') {
-      setShowVendorForm(true);
-    } else {
-      setSelectedVendor(value);
+      toast.success('Employee/Vendor created successfully');
+      setShowEmployeeForm(false);
+      // Auto-select the new employee
+      setSelectedEmployee(result.id.toString());
+      resetEmployeeForm();
+    } catch (error) {
+      toast.error((error as string) || 'Failed to add employee');
     }
   };
 
+  const handleAddCategory = async () => {
+    if (!categoryName) {
+      toast.error('Please enter category name');
+      return;
+    }
+
+    try {
+      const result = await dispatch(addCategory({
+        name: categoryName,
+      })).unwrap();
+
+      toast.success('Category created successfully');
+      setShowCategoryForm(false);
+      // Auto-select the new category
+      setSelectedCategory(result.id.toString());
+      setCategoryName('');
+    } catch (error) {
+      toast.error((error as string) || 'Failed to add category');
+    }
+  };
+
+  const handleMakePayment = async () => {
+    if (!selectedExpenseId || !paymentAmount) return;
+
+    try {
+      await dispatch(makePayment({
+        expense: selectedExpenseId,
+        amount: parseFloat(paymentAmount),
+      })).unwrap();
+
+      toast.success('Payment recorded successfully');
+      setShowPaymentModal(false);
+      setPaymentAmount('');
+      // Refresh payments list in details modal
+      if (selectedExpenseId) {
+        dispatch(fetchPayments(selectedExpenseId));
+      }
+    } catch (error) {
+      toast.error((error as string) || 'Failed to record payment');
+    }
+  };
+
+  const resetExpenseForm = () => {
+    setSelectedEmployee('');
+    setSelectedCategory('');
+    setAmountRequested('');
+    setAmountPaid('');
+  };
+
+  const resetEmployeeForm = () => {
+    setEmpFullName('');
+    setEmpDepartment('');
+    setEmpDesignation('');
+    setEmpJoinedAt('');
+  };
+
+  const handleEmployeeChange = (value: string) => {
+    if (value === 'create') {
+      setShowEmployeeForm(true);
+    } else {
+      setSelectedEmployee(value);
+    }
+  };
+
+  const handleCategoryChange = (value: string) => {
+    if (value === 'create') {
+      setShowCategoryForm(true);
+    } else {
+      setSelectedCategory(value);
+    }
+  };
+
+  // Filter expenses by month (assuming date is created_at or updated_at)
+  const filteredExpenses = expenses.filter(exp => {
+    const date = exp.created_at || exp.updated_at || '';
+    return date.startsWith(selectedMonth);
+  });
+
+  const totalPaid = filteredExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_paid), 0);
+  const selectedExpense = expenses.find(e => e.id === selectedExpenseId);
+
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in pb-20">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">Expense Records</h1>
@@ -110,10 +211,10 @@ const ExpenseRecords = () => {
       <div className="stat-card mb-6 sm:mb-8 flex items-center justify-between">
         <div>
           <p className="text-sm text-muted-foreground mb-1">Total Paid This Month</p>
-          <p className="text-2xl sm:text-3xl font-bold text-foreground">${totalPaid.toLocaleString()}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-foreground">₹{totalPaid.toLocaleString()}</p>
         </div>
         <div className="p-3 bg-success/10 rounded-lg">
-          <DollarSign className="w-6 h-6 sm:w-8 sm:h-8 text-success" />
+          <IndianRupee className="w-6 h-6 sm:w-8 sm:h-8 text-success" />
         </div>
       </div>
 
@@ -133,36 +234,49 @@ const ExpenseRecords = () => {
           <table className="w-full">
             <thead className="bg-muted">
               <tr>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Vendor</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Reason</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Actual Amount</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Paid Amount</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Date</th>
+                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Employee/Vendor</th>
+                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Category</th>
+                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Requested</th>
+                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Paid</th>
+                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Created At</th>
+                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Updated At</th>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Status</th>
               </tr>
             </thead>
             <tbody>
-              {filteredExpenses.length === 0 ? (
+              {expensesLoading ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={5} className="py-12 text-center">
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+                  </td>
+                </tr>
+              ) : filteredExpenses.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-muted-foreground">
                     No expense records found for this month
                   </td>
                 </tr>
               ) : (
                 filteredExpenses.map((expense) => (
-                  <tr key={expense.id} className="table-row-hover border-b border-border last:border-0">
-                    <td className="py-4 px-6 text-sm font-medium text-foreground">{expense.vendorName}</td>
-                    <td className="py-4 px-6 text-sm text-muted-foreground">{expense.reason}</td>
-                    <td className="py-4 px-6 text-sm font-semibold text-foreground">${expense.actualAmount.toLocaleString()}</td>
-                    <td className="py-4 px-6 text-sm font-semibold text-foreground">${expense.paidAmount.toLocaleString()}</td>
-                    <td className="py-4 px-6 text-sm text-muted-foreground">{expense.date}</td>
+                  <tr
+                    key={expense.id}
+                    onClick={() => handleRowClick(expense.id)}
+                    className="table-row-hover border-b border-border last:border-0 cursor-pointer"
+                  >
+                    <td className="py-4 px-6 text-sm font-medium text-foreground">{getEmployeeName(expense.employee)}</td>
+                    <td className="py-4 px-6 text-sm text-muted-foreground">{getCategoryName(expense.category)}</td>
+                    <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</td>
+                    <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</td>
+                    <td className="py-4 px-6 text-sm text-muted-foreground">{expense.created_at}</td>
+                    <td className="py-4 px-6 text-sm text-muted-foreground">{expense.updated_at}</td>
                     <td className="py-4 px-6">
-                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
-                        expense.status === 'paid' 
-                          ? 'bg-success/10 text-success' 
-                          : 'bg-warning/10 text-warning'
-                      }`}>
-                        {expense.status === 'paid' ? 'Paid' : 'Pending'}
+                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
+                        ? 'bg-success/10 text-success'
+                        : expense.status === 'PARTIAL'
+                          ? 'bg-warning/10 text-warning'
+                          : 'bg-destructive/10 text-destructive'
+                        }`}>
+                        {expense.status}
                       </span>
                     </td>
                   </tr>
@@ -175,41 +289,162 @@ const ExpenseRecords = () => {
 
       {/* Transactions Cards - Mobile */}
       <div className="md:hidden space-y-3">
-        {filteredExpenses.length === 0 ? (
+        {expensesLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : filteredExpenses.length === 0 ? (
           <div className="card-elevated p-8 text-center text-muted-foreground">
             No expense records found for this month
           </div>
         ) : (
           filteredExpenses.map((expense) => (
-            <div key={expense.id} className="card-elevated p-4">
+            <div
+              key={expense.id}
+              onClick={() => handleRowClick(expense.id)}
+              className="card-elevated p-4 cursor-pointer active:scale-[0.98] transition-transform"
+            >
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <p className="font-medium text-foreground">{expense.vendorName}</p>
-                  <p className="text-sm text-muted-foreground">{expense.reason}</p>
+                  <p className="font-medium text-foreground">{getEmployeeName(expense.employee)}</p>
+                  <p className="text-sm text-muted-foreground">{getCategoryName(expense.category)}</p>
                 </div>
-                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
-                  expense.status === 'paid' 
-                    ? 'bg-success/10 text-success' 
-                    : 'bg-warning/10 text-warning'
-                }`}>
-                  {expense.status === 'paid' ? 'Paid' : 'Pending'}
+                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
+                  ? 'bg-success/10 text-success'
+                  : expense.status === 'PARTIAL'
+                    ? 'bg-warning/10 text-warning'
+                    : 'bg-destructive/10 text-destructive'
+                  }`}>
+                  {expense.status}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
-                  <p className="text-muted-foreground">Actual</p>
-                  <p className="font-semibold text-foreground">${expense.actualAmount.toLocaleString()}</p>
+                  <p className="text-muted-foreground">Requested</p>
+                  <p className="font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Paid</p>
-                  <p className="font-semibold text-foreground">${expense.paidAmount.toLocaleString()}</p>
+                  <p className="font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</p>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">{expense.date}</p>
             </div>
           ))
         )}
       </div>
+
+      {/* Expense Details Modal */}
+      <AnimatePresence>
+        {showDetailsModal && selectedExpense && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="modal-overlay flex items-center justify-center p-4 sm:p-6"
+            onClick={() => setShowDetailsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="card-elevated w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-foreground">Expense Details</h2>
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="p-1 hover:bg-muted rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-muted-foreground" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Header Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Employee/Vendor</p>
+                    <p className="font-medium text-foreground">{getEmployeeName(selectedExpense.employee)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Category</p>
+                    <p className="font-medium text-foreground">{getCategoryName(selectedExpense.category)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Requested Amount</p>
+                    <p className="font-semibold text-xl text-foreground">₹{parseFloat(selectedExpense.amount_requested).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Paid Amount</p>
+                    <p className="font-semibold text-xl text-success">₹{parseFloat(selectedExpense.amount_paid).toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Status:</span>
+                  <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${selectedExpense.status === 'PAID'
+                    ? 'bg-success/10 text-success'
+                    : selectedExpense.status === 'PARTIAL'
+                      ? 'bg-warning/10 text-warning'
+                      : 'bg-destructive/10 text-destructive'
+                    }`}>
+                    {selectedExpense.status}
+                  </span>
+                </div>
+
+                {/* Payment History Section */}
+                <div className="border-t border-border pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                      <Receipt className="w-4 h-4" />
+                      Payment History
+                    </h3>
+                    {selectedExpense.status !== 'PAID' && (
+                      <button
+                        onClick={() => setShowPaymentModal(true)}
+                        className="btn-primary text-xs py-1.5 px-3 h-auto"
+                      >
+                        + Add Payment
+                      </button>
+                    )}
+                  </div>
+
+                  {paymentsLoading ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    </div>
+                  ) : payments.length === 0 ? (
+                    <div className="text-center py-6 bg-muted/30 rounded-lg border border-dashed border-border">
+                      <p className="text-sm text-muted-foreground">No payments made yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {payments.map((payment) => (
+                        <div key={payment.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-success/10 rounded-full flex items-center justify-center">
+                              <IndianRupee className="w-4 h-4 text-success" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-foreground">Payment #{payment.id}</p>
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(payment.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="font-semibold text-foreground">₹{parseFloat(payment.amount).toLocaleString()}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Add Expense Modal */}
       <AnimatePresence>
@@ -229,127 +464,146 @@ const ExpenseRecords = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-semibold text-foreground">Add New Expense</h2>
+                <h2 className="text-lg font-semibold text-foreground">
+                  {showEmployeeForm ? 'Create New Employee' : showCategoryForm ? 'Create New Category' : 'Add New Expense'}
+                </h2>
                 <button
-                  onClick={() => setShowExpenseModal(false)}
+                  onClick={() => {
+                    setShowExpenseModal(false);
+                    setShowEmployeeForm(false);
+                    setShowCategoryForm(false);
+                  }}
                   className="p-1 hover:bg-muted rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-muted-foreground" />
                 </button>
               </div>
 
-              {showVendorForm ? (
-                /* Create Vendor Form */
+              {showEmployeeForm ? (
+                /* Create Employee Form */
                 <div className="space-y-4">
-                  <div className="p-4 bg-accent rounded-lg mb-4">
-                    <h3 className="text-sm font-medium text-accent-foreground mb-3">Create New Vendor</h3>
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        placeholder="Vendor Name"
-                        value={vendorName}
-                        onChange={(e) => setVendorName(e.target.value)}
-                        className="input-field"
-                      />
-                      <input
-                        type="email"
-                        placeholder="Email Address"
-                        value={vendorEmail}
-                        onChange={(e) => setVendorEmail(e.target.value)}
-                        className="input-field"
-                      />
-                      <input
-                        type="tel"
-                        placeholder="Phone Number"
-                        value={vendorPhone}
-                        onChange={(e) => setVendorPhone(e.target.value)}
-                        className="input-field"
-                      />
-                    </div>
-                    <div className="flex gap-3 mt-4">
-                      <button onClick={handleAddVendor} className="btn-primary flex-1">
-                        Save Vendor
-                      </button>
-                      <button 
-                        onClick={() => { setShowVendorForm(false); resetVendorForm(); }} 
-                        className="btn-ghost flex-1"
-                      >
-                        Cancel
-                      </button>
-                    </div>
+                  <input
+                    type="text"
+                    placeholder="Full Name"
+                    value={empFullName}
+                    onChange={(e) => setEmpFullName(e.target.value)}
+                    className="input-field"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Department"
+                    value={empDepartment}
+                    onChange={(e) => setEmpDepartment(e.target.value)}
+                    className="input-field"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Designation"
+                    value={empDesignation}
+                    onChange={(e) => setEmpDesignation(e.target.value)}
+                    className="input-field"
+                  />
+                  <div className="flex gap-3 mt-4">
+                    <button onClick={handleAddEmployee} className="btn-primary flex-1">
+                      Save Employee
+                    </button>
+                    <button
+                      onClick={() => setShowEmployeeForm(false)}
+                      className="btn-ghost flex-1"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : showCategoryForm ? (
+                /* Create Category Form */
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    placeholder="Category Name"
+                    value={categoryName}
+                    onChange={(e) => setCategoryName(e.target.value)}
+                    className="input-field"
+                  />
+                  <div className="flex gap-3 mt-4">
+                    <button onClick={handleAddCategory} className="btn-primary flex-1">
+                      Save Category
+                    </button>
+                    <button
+                      onClick={() => setShowCategoryForm(false)}
+                      className="btn-ghost flex-1"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </div>
               ) : (
                 /* Expense Form */
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Vendor</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">Employee / Vendor</label>
                     <select
-                      value={selectedVendor}
-                      onChange={(e) => handleVendorChange(e.target.value)}
+                      value={selectedEmployee}
+                      onChange={(e) => handleEmployeeChange(e.target.value)}
                       className="input-field"
                     >
-                      <option value="">Select Vendor</option>
-                      <option value="create" className="text-primary font-medium">+ Create Vendor</option>
-                      {vendors.map((vendor) => (
-                        <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
+                      <option value="">Select Employee</option>
+                      <option value="create" className="text-primary font-medium">+ Create New Employee</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>{emp.full_name}</option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Actual/Expense Amount</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">Category</label>
+                    <select
+                      value={selectedCategory}
+                      onChange={(e) => handleCategoryChange(e.target.value)}
+                      className="input-field"
+                    >
+                      <option value="">Select Category</option>
+                      <option value="create" className="text-primary font-medium">+ Create New Category</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">Amount Requested</label>
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
                       <input
                         type="number"
                         placeholder="0.00"
-                        value={actualAmount}
-                        onChange={(e) => setActualAmount(e.target.value)}
+                        value={amountRequested}
+                        onChange={(e) => setAmountRequested(e.target.value)}
                         className="input-field pl-8"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Paid Amount</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">Amount Paid</label>
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
                       <input
                         type="number"
                         placeholder="0.00"
-                        value={paidAmount}
-                        onChange={(e) => setPaidAmount(e.target.value)}
+                        value={amountPaid}
+                        onChange={(e) => setAmountPaid(e.target.value)}
                         className="input-field pl-8"
                       />
                     </div>
-                    {actualAmount && paidAmount && (
-                      <p className={`text-xs mt-1 ${
-                        parseFloat(actualAmount) === parseFloat(paidAmount) 
-                          ? 'text-success' 
-                          : 'text-warning'
-                      }`}>
-                        Status: {parseFloat(actualAmount) === parseFloat(paidAmount) ? 'Paid' : 'Pending'}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Reason / Message</label>
-                    <textarea
-                      placeholder="Enter expense reason..."
-                      value={expenseReason}
-                      onChange={(e) => setExpenseReason(e.target.value)}
-                      className="input-field min-h-[100px] resize-none"
-                    />
                   </div>
 
                   <div className="flex gap-3 pt-2">
                     <button onClick={handleAddExpense} className="btn-primary flex-1">
                       Add Expense
                     </button>
-                    <button 
-                      onClick={() => { setShowExpenseModal(false); resetExpenseForm(); }} 
+                    <button
+                      onClick={() => { setShowExpenseModal(false); resetExpenseForm(); }}
                       className="btn-ghost flex-1"
                     >
                       Cancel
@@ -357,6 +611,55 @@ const ExpenseRecords = () => {
                   </div>
                 </div>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Payment Modal */}
+      <AnimatePresence>
+        {showPaymentModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="modal-overlay flex items-center justify-center p-4 sm:p-6 z-[60]" // Higher z-index to sit above details modal
+            onClick={() => setShowPaymentModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="card-elevated w-full max-w-sm p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-lg font-semibold text-foreground mb-4">Make Payment</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Amount to Pay</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      className="input-field pl-8"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={handleMakePayment} className="btn-primary flex-1">
+                    Confirm Payment
+                  </button>
+                  <button
+                    onClick={() => setShowPaymentModal(false)}
+                    className="btn-ghost flex-1"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}

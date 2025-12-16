@@ -1,98 +1,188 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-
-export interface Vendor {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-}
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import axiosInstance from '@/lib/axiosInstance';
 
 export interface Expense {
-  id: string;
-  vendorId: string;
-  vendorName: string;
-  actualAmount: number;
-  paidAmount: number;
-  reason: string;
-  date: string;
-  status: 'pending' | 'paid';
+  id: number;
+  employee: number;
+  category: number;
+  amount_requested: string;
+  amount_paid: string;
+  status: 'UNPAID' | 'PAID' | 'PARTIAL';
+  created_by?: number;
+  updated_by?: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Payment {
+  id: number;
+  expense: number;
+  amount: string;
+  created_at: string;
+  created_by: number;
 }
 
 interface ExpenseState {
   expenses: Expense[];
-  vendors: Vendor[];
+  payments: Payment[]; // Store payments for the currently selected expense
   isLoading: boolean;
+  paymentsLoading: boolean;
   error: string | null;
   selectedMonth: string;
 }
 
 const initialState: ExpenseState = {
-  expenses: [
-    { id: '1', vendorId: '1', vendorName: 'Tech Solutions Inc', actualAmount: 5400, paidAmount: 5400, reason: 'Software License Renewal', date: '2024-01-15', status: 'paid' },
-    { id: '2', vendorId: '2', vendorName: 'Office Supplies Co', actualAmount: 1250, paidAmount: 1250, reason: 'Monthly Office Supplies', date: '2024-01-12', status: 'paid' },
-    { id: '3', vendorId: '3', vendorName: 'Cloud Services Ltd', actualAmount: 3200, paidAmount: 2000, reason: 'Cloud Infrastructure', date: '2024-01-10', status: 'pending' },
-    { id: '4', vendorId: '1', vendorName: 'Tech Solutions Inc', actualAmount: 2800, paidAmount: 2800, reason: 'Hardware Maintenance', date: '2024-01-08', status: 'paid' },
-    { id: '5', vendorId: '4', vendorName: 'Marketing Agency', actualAmount: 8500, paidAmount: 8500, reason: 'Q1 Marketing Campaign', date: '2024-01-05', status: 'paid' },
-    { id: '6', vendorId: '2', vendorName: 'Office Supplies Co', actualAmount: 890, paidAmount: 890, reason: 'Printer Cartridges', date: '2024-01-03', status: 'paid' },
-  ],
-  vendors: [
-    { id: '1', name: 'Tech Solutions Inc', email: 'billing@techsolutions.com', phone: '+1 555-0101' },
-    { id: '2', name: 'Office Supplies Co', email: 'orders@officesupplies.com', phone: '+1 555-0102' },
-    { id: '3', name: 'Cloud Services Ltd', email: 'finance@cloudservices.com', phone: '+1 555-0103' },
-    { id: '4', name: 'Marketing Agency', email: 'accounts@marketingagency.com', phone: '+1 555-0104' },
-  ],
+  expenses: [],
+  payments: [],
   isLoading: false,
+  paymentsLoading: false,
   error: null,
   selectedMonth: new Date().toISOString().slice(0, 7),
 };
+
+// Async Thunks
+export const fetchExpenses = createAsyncThunk(
+  'expense/fetchExpenses',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.get('expenses/');
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.detail || 'Failed to fetch expenses');
+    }
+  }
+);
+
+export const addExpense = createAsyncThunk(
+  'expense/addExpense',
+  async (expenseData: { employee: number; category: number; amount_requested: number }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post('expenses/', expenseData);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.detail || 'Failed to add expense');
+    }
+  }
+);
+
+export const makePayment = createAsyncThunk(
+  'expense/makePayment',
+  async (paymentData: { expense: number; amount: number }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post('payments/', paymentData);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.detail || 'Failed to make payment');
+    }
+  }
+);
+
+export const fetchPayments = createAsyncThunk(
+  'expense/fetchPayments',
+  async (expenseId: number, { rejectWithValue }) => {
+    try {
+      // Assuming the API supports filtering by expense ID, e.g., /payments/?expense=ID
+      // If not, we might need to fetch all payments and filter client-side, or use a nested endpoint if available.
+      // Based on typical DRF patterns, filtering is common.
+      const response = await axiosInstance.get(`payments/?expense=${expenseId}`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.detail || 'Failed to fetch payments');
+    }
+  }
+);
 
 const expenseSlice = createSlice({
   name: 'expense',
   initialState,
   reducers: {
-    addExpense: (state, action: PayloadAction<Omit<Expense, 'id'>>) => {
-      const newExpense = {
-        ...action.payload,
-        id: Date.now().toString(),
-      };
-      state.expenses.unshift(newExpense);
-    },
-    updateExpense: (state, action: PayloadAction<Expense>) => {
-      const index = state.expenses.findIndex((e) => e.id === action.payload.id);
-      if (index !== -1) {
-        state.expenses[index] = action.payload;
-      }
-    },
-    deleteExpense: (state, action: PayloadAction<string>) => {
-      state.expenses = state.expenses.filter((e) => e.id !== action.payload);
-    },
-    addVendor: (state, action: PayloadAction<Omit<Vendor, 'id'>>) => {
-      const newVendor = {
-        ...action.payload,
-        id: Date.now().toString(),
-      };
-      state.vendors.push(newVendor);
-    },
     setSelectedMonth: (state, action: PayloadAction<string>) => {
       state.selectedMonth = action.payload;
     },
-    setLoading: (state, action: PayloadAction<boolean>) => {
-      state.isLoading = action.payload;
+    clearError: (state) => {
+      state.error = null;
     },
-    setError: (state, action: PayloadAction<string | null>) => {
-      state.error = action.payload;
-    },
+    clearPayments: (state) => {
+      state.payments = [];
+    }
+  },
+  extraReducers: (builder) => {
+    // Fetch Expenses
+    builder
+      .addCase(fetchExpenses.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchExpenses.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.expenses = action.payload;
+      })
+      .addCase(fetchExpenses.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      });
+
+    // Add Expense
+    builder
+      .addCase(addExpense.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(addExpense.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.expenses.unshift(action.payload);
+      })
+      .addCase(addExpense.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      });
+
+    // Make Payment
+    builder
+      .addCase(makePayment.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(makePayment.fulfilled, (state, action) => {
+        state.isLoading = false;
+        const payment = action.payload;
+        const expenseIndex = state.expenses.findIndex(e => e.id === payment.expense);
+        if (expenseIndex !== -1) {
+          const expense = state.expenses[expenseIndex];
+          const newPaidAmount = parseFloat(expense.amount_paid) + parseFloat(payment.amount);
+          state.expenses[expenseIndex].amount_paid = newPaidAmount.toFixed(2);
+          if (newPaidAmount >= parseFloat(expense.amount_requested)) {
+            state.expenses[expenseIndex].status = 'PAID';
+          } else {
+            state.expenses[expenseIndex].status = 'PARTIAL';
+          }
+        }
+        // Also add to current payments list if viewing this expense
+        if (state.payments.length > 0 && state.payments[0].expense === payment.expense) {
+          state.payments.unshift(payment);
+        }
+      })
+      .addCase(makePayment.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      });
+
+    // Fetch Payments
+    builder
+      .addCase(fetchPayments.pending, (state) => {
+        state.paymentsLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchPayments.fulfilled, (state, action) => {
+        state.paymentsLoading = false;
+        state.payments = action.payload;
+      })
+      .addCase(fetchPayments.rejected, (state, action) => {
+        state.paymentsLoading = false;
+        state.error = action.payload as string;
+      });
   },
 });
 
-export const {
-  addExpense,
-  updateExpense,
-  deleteExpense,
-  addVendor,
-  setSelectedMonth,
-  setLoading,
-  setError,
-} = expenseSlice.actions;
-
+export const { setSelectedMonth, clearError, clearPayments } = expenseSlice.actions;
 export default expenseSlice.reducer;

@@ -25,17 +25,36 @@ const Login = () => {
 
     dispatch(loginStart());
     const payload = {
-      email,
+      identifier: email,
       password,
     };
     try {
       const response = await axiosInstance.post('login/', payload);
+      const data = response.data;
+      console.log('Login successful, response data:', data);
 
-      dispatch(loginSuccess(response.data));
+      // Handle different response structures
+      const token = data.token || data.access || data.key || data.accessToken;
+
+      // If no token is found in the response, throw an error
+      if (!token) {
+        throw new Error('Login successful but no access token received. Please check backend response.');
+      }
+
+      // Handle missing user object (common in some JWT implementations)
+      // We construct a minimal user object if one isn't provided
+      const user = data.user || data.data?.user || {
+        id: data.id || '0',
+        email: email,
+        username: data.username || email.split('@')[0],
+        fullName: data.fullName || data.name || 'User'
+      };
+
+      dispatch(loginSuccess({ user, token }));
       toast.success('Welcome back!');
       navigate('/dashboard');
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.response?.data?.message || 'Authentication failed. Please try again.';
+      const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Authentication failed. Please try again.';
       dispatch(loginFailure(errorMessage));
       toast.error(errorMessage);
     }
@@ -68,14 +87,14 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                Email Address
+                Email / Username
               </label>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="input-field"
-                placeholder="Enter your email"
+                placeholder="Enter your email/username"
                 disabled={isLoading}
               />
             </div>
