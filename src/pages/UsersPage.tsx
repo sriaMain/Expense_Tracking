@@ -79,7 +79,7 @@ const UsersPage = () => {
   };
 
   const handleToggleUserStatus = async (user: AppUser) => {
-    const action = user.is_active ? 'disable' : 'activate';
+    const action = user.is_active ? 'inactive' : 'activate';
     if (!confirm(`Are you sure you want to ${action} ${user.username}?`)) return;
 
     try {
@@ -163,7 +163,7 @@ const UsersPage = () => {
                           }`}
                       >
                         <Power className="w-4 h-4" />
-                        {user.is_active ? 'Disable User' : 'Activate User'}
+                        {user.is_active ? 'Inactive User' : 'Active User'}
                       </button>
                     </div>
                   )}

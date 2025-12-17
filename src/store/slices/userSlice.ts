@@ -100,12 +100,12 @@ export const toggleUserStatus = createAsyncThunk(
 
             if (is_active) {
                 // Currently active, so disable
-                await axiosInstance.delete(`users/${id}/`);
+                await axiosInstance.put(`users/${id}/`);
                 return { id, is_active: false };
             } else {
                 // Currently inactive, so activate. 
                 // I'll try a specific activate endpoint as it's common with soft deletes.
-                await axiosInstance.post(`users/${id}/activate/`);
+                await axiosInstance.put(`users/${id}/`);
                 return { id, is_active: true };
             }
         } catch (error: any) {
@@ -145,9 +145,9 @@ export const toggleUserStatus = createAsyncThunk(
 
 export const changePassword = createAsyncThunk(
     'users/changePassword',
-    async ({ id, old_password, new_password }: { id: number; old_password?: string; new_password: string }, { rejectWithValue }) => {
+    async ({ email, old_password, new_password }: { email: string; old_password?: string; new_password: string }, { rejectWithValue }) => {
         try {
-            const response = await axiosInstance.post(`reset-password/`, { new_password, old_password });
+            const response = await axiosInstance.post(`reset-password/`, { new_password, old_password, email });
             return response.data;
         } catch (error: any) {
             return rejectWithValue(

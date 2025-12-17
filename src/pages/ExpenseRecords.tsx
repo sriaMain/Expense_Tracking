@@ -12,7 +12,6 @@ const ExpenseRecords = () => {
   const { expenses, payments, isLoading: expensesLoading, paymentsLoading, selectedMonth } = useAppSelector((state) => state.expense);
   const { employees, isLoading: employeesLoading } = useAppSelector((state) => state.employee);
   const { categories, isLoading: categoriesLoading } = useAppSelector((state) => state.category);
-
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
@@ -64,16 +63,16 @@ const ExpenseRecords = () => {
       return;
     }
 
-      console.log(selectedEmployee, selectedCategory, amountRequested, amountPaid);
+    console.log(selectedEmployee, selectedCategory, amountRequested, amountPaid);
 
     try {
       const result = await dispatch(addExpense({
-        
+
         employee: parseInt(selectedEmployee),
         category: parseInt(selectedCategory),
         amount_requested: parseFloat(amountRequested),
       })).unwrap();
-      
+
       // If there's an initial amount paid, record it immediately
       if (amountPaid && parseFloat(amountPaid) > 0) {
         await dispatch(makePayment({
@@ -193,7 +192,7 @@ const ExpenseRecords = () => {
   const totalPaid = filteredExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_paid), 0);
   const selectedExpense = expenses.find(e => e.id === selectedExpenseId);
 
-  
+
 
   return (
     <div className="animate-fade-in pb-20">
@@ -397,17 +396,17 @@ const ExpenseRecords = () => {
                     <p className="text-sm text-muted-foreground">Updated At</p>
                     <p className="font-medium text-foreground">{selectedExpense.updated_at}</p>
                   </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Status:</span>
-                  <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${selectedExpense.status === 'PAID'
-                    ? 'bg-success/10 text-success'
-                    : selectedExpense.status === 'PARTIAL'
-                      ? 'bg-warning/10 text-warning'
-                      : 'bg-destructive/10 text-destructive'
-                    }`}>
-                    {selectedExpense.status}
-                  </span>
-                </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Status:</span>
+                    <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${selectedExpense.status === 'PAID'
+                      ? 'bg-success/10 text-success'
+                      : selectedExpense.status === 'PARTIAL'
+                        ? 'bg-warning/10 text-warning'
+                        : 'bg-destructive/10 text-destructive'
+                      }`}>
+                      {selectedExpense.status}
+                    </span>
+                  </div>
                 </div>
 
 
@@ -568,7 +567,7 @@ const ExpenseRecords = () => {
                       <option value="">Select Employee</option>
                       <option value="create" className="text-primary font-medium">+ Create New Employee</option>
                       {employees.map((emp) => (
-                        <option key={emp.id} value={emp.employee_id}>{emp.full_name}</option>
+                        <option key={emp.employee_id} value={emp.employee_id}>{emp.full_name}</option>
                       ))}
                     </select>
                   </div>

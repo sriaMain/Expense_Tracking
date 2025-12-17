@@ -9,7 +9,7 @@ import {
   FileBarChart,
   Users,
   LogOut,
-  DollarSign,
+  IndianRupee,
   Menu,
   X,
   Key,
@@ -38,7 +38,7 @@ const Navbar = () => {
   //   navigate('/');
   //   setMobileMenuOpen(false);
   // };
-  
+
   async function handleSignOut(e) {
     e?.preventDefault?.();
 
@@ -46,7 +46,7 @@ const Navbar = () => {
 
     try {
       // if (refresh) {
-        await axiosInstance.post('logout/', { refresh });
+      await axiosInstance.post('logout/', { refresh });
       // } else {
       //   // if refresh stored in HttpOnly cookie, backend will read it — send credentials
       //   await axiosInstance.post('logout/', null, { withCredentials: true });
@@ -80,7 +80,7 @@ const Navbar = () => {
       // Assuming user.id is available and matches the backend ID type (string/number)
       // userSlice expects number, authSlice has string. Need to cast.
       await dispatch(changePassword({
-        id: parseInt(user.id),
+        email: user.email,
         old_password: currentPassword,
         new_password: newPassword
       })).unwrap();
@@ -130,7 +130,7 @@ const Navbar = () => {
             {/* Logo */}
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-primary-foreground" />
+                <IndianRupee className="w-5 h-5 text-primary-foreground" />
               </div>
               <span className="text-lg font-semibold text-foreground hidden sm:block">ExpenseFlow</span>
             </div>

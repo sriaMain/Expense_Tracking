@@ -35,7 +35,7 @@ const Dashboard = () => {
   }, [dispatch]);
 
   // Helper to get employee name
-  const getEmployeeName = (id: number) => employees.find(e => e.employee_id === id)?.full_name || 'Unknown Employee';
+  const getEmployeeName = (id: number) => employees.find(e => e.employee_id === id)?.employee_name || 'Unknown Employee';
 
   // Calculate totals
   const totalExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount_requested), 0);
@@ -60,7 +60,7 @@ const Dashboard = () => {
       .filter(exp => exp.employee === emp.id)
       .reduce((sum, exp) => sum + parseFloat(exp.amount_requested), 0);
     return {
-      name: emp.full_name,
+      name: emp.employee_name,
       value: empTotal,
     };
   }).filter(v => v.value > 0);
@@ -243,10 +243,10 @@ const Dashboard = () => {
                     <td className="py-4 px-4 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</td>
                     <td className="py-4 px-4">
                       <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
-                          ? 'bg-success/10 text-success'
-                          : expense.status === 'PARTIAL'
-                            ? 'bg-warning/10 text-warning'
-                            : 'bg-destructive/10 text-destructive'
+                        ? 'bg-success/10 text-success'
+                        : expense.status === 'PARTIAL'
+                          ? 'bg-warning/10 text-warning'
+                          : 'bg-destructive/10 text-destructive'
                         }`}>
                         {expense.status}
                       </span>
@@ -272,10 +272,10 @@ const Dashboard = () => {
                   <p className="font-medium text-foreground">{getEmployeeName(expense.employee)}</p>
                 </div>
                 <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
-                    ? 'bg-success/10 text-success'
-                    : expense.status === 'PARTIAL'
-                      ? 'bg-warning/10 text-warning'
-                      : 'bg-destructive/10 text-destructive'
+                  ? 'bg-success/10 text-success'
+                  : expense.status === 'PARTIAL'
+                    ? 'bg-warning/10 text-warning'
+                    : 'bg-destructive/10 text-destructive'
                   }`}>
                   {expense.status}
                 </span>
