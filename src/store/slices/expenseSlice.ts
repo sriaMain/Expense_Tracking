@@ -1,6 +1,11 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import axiosInstance from '@/lib/axiosInstance';
 
+export interface UserInfo {
+  id: number;
+  username: string;
+}
+
 export interface Expense {
   id: number;
   employee: number;
@@ -8,8 +13,8 @@ export interface Expense {
   amount_requested: string;
   amount_paid: string;
   status: 'UNPAID' | 'PAID' | 'PARTIAL';
-  created_by?: number;
-  updated_by?: number | null;
+  created_by?: UserInfo;
+  updated_by?: UserInfo | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -84,7 +89,7 @@ export const fetchPayments = createAsyncThunk(
       // Assuming the API supports filtering by expense ID, e.g., /payments/?expense=ID
       // If not, we might need to fetch all payments and filter client-side, or use a nested endpoint if available.
       // Based on typical DRF patterns, filtering is common.
-      const response = await axiosInstance.get(`payments/?expense=${expenseId}`);
+      const response = await axiosInstance.get(`employees/${expenseId}/payments/`);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.detail || 'Failed to fetch payments');

@@ -27,7 +27,6 @@ const ExpenseRecords = () => {
   const [empFullName, setEmpFullName] = useState('');
   const [empDepartment, setEmpDepartment] = useState('');
   const [empDesignation, setEmpDesignation] = useState('');
-  const [empJoinedAt, setEmpJoinedAt] = useState('');
 
   // Category Form states
   const [categoryName, setCategoryName] = useState('');
@@ -47,8 +46,10 @@ const ExpenseRecords = () => {
   }, [dispatch]);
 
   // Helper to get names from IDs
-  const getEmployeeName = (id: number) => employees.find(e => e.id === id)?.full_name || 'Unknown Employee';
+  const getEmployeeName = (id: number) => employees.find(e => e.employee_id === id)?.full_name || 'Unknown Employee';
   const getCategoryName = (id: number) => categories.find(c => c.id === id)?.name || 'Unknown Category';
+
+
 
   const handleRowClick = (expenseId: number) => {
     setSelectedExpenseId(expenseId);
@@ -63,13 +64,16 @@ const ExpenseRecords = () => {
       return;
     }
 
+      console.log(selectedEmployee, selectedCategory, amountRequested, amountPaid);
+
     try {
       const result = await dispatch(addExpense({
+        
         employee: parseInt(selectedEmployee),
         category: parseInt(selectedCategory),
         amount_requested: parseFloat(amountRequested),
       })).unwrap();
-
+      
       // If there's an initial amount paid, record it immediately
       if (amountPaid && parseFloat(amountPaid) > 0) {
         await dispatch(makePayment({
@@ -97,13 +101,12 @@ const ExpenseRecords = () => {
         full_name: empFullName,
         department: empDepartment,
         designation: empDesignation,
-        joined_at: empJoinedAt,
       })).unwrap();
 
       toast.success('Employee/Vendor created successfully');
       setShowEmployeeForm(false);
       // Auto-select the new employee
-      setSelectedEmployee(result.id.toString());
+      setSelectedEmployee(result.employee_id.toString());
       resetEmployeeForm();
     } catch (error) {
       toast.error((error as string) || 'Failed to add employee');
@@ -163,7 +166,6 @@ const ExpenseRecords = () => {
     setEmpFullName('');
     setEmpDepartment('');
     setEmpDesignation('');
-    setEmpJoinedAt('');
   };
 
   const handleEmployeeChange = (value: string) => {
@@ -190,6 +192,8 @@ const ExpenseRecords = () => {
 
   const totalPaid = filteredExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_paid), 0);
   const selectedExpense = expenses.find(e => e.id === selectedExpenseId);
+
+  
 
   return (
     <div className="animate-fade-in pb-20">
@@ -238,8 +242,7 @@ const ExpenseRecords = () => {
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Category</th>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Requested</th>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Paid</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Created At</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Updated At</th>
+                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Created By</th>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Status</th>
               </tr>
             </thead>
@@ -267,8 +270,7 @@ const ExpenseRecords = () => {
                     <td className="py-4 px-6 text-sm text-muted-foreground">{getCategoryName(expense.category)}</td>
                     <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</td>
                     <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</td>
-                    <td className="py-4 px-6 text-sm text-muted-foreground">{expense.created_at}</td>
-                    <td className="py-4 px-6 text-sm text-muted-foreground">{expense.updated_at}</td>
+                    <td className="py-4 px-6 text-sm text-muted-foreground">{expense.created_by?.username || '-'}</td>
                     <td className="py-4 px-6">
                       <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
                         ? 'bg-success/10 text-success'
@@ -327,6 +329,10 @@ const ExpenseRecords = () => {
                   <p className="text-muted-foreground">Paid</p>
                   <p className="font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</p>
                 </div>
+                <div>
+                  <p className="text-muted-foreground">Created By</p>
+                  <p className="font-semibold text-foreground">{expense.created_by.username}</p>
+                </div>
               </div>
             </div>
           ))
@@ -379,8 +385,18 @@ const ExpenseRecords = () => {
                     <p className="text-sm text-muted-foreground">Paid Amount</p>
                     <p className="font-semibold text-xl text-success">₹{parseFloat(selectedExpense.amount_paid).toLocaleString()}</p>
                   </div>
-                </div>
-
+                  <div>
+                    <p className="text-sm text-muted-foreground">Created By</p>
+                    <p className="font-medium text-foreground">{selectedExpense.created_by?.username || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Created At</p>
+                    <p className="font-medium text-foreground">{selectedExpense.created_at}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Updated At</p>
+                    <p className="font-medium text-foreground">{selectedExpense.updated_at}</p>
+                  </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Status:</span>
                   <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${selectedExpense.status === 'PAID'
@@ -392,6 +408,8 @@ const ExpenseRecords = () => {
                     {selectedExpense.status}
                   </span>
                 </div>
+                </div>
+
 
                 {/* Payment History Section */}
                 <div className="border-t border-border pt-6">
@@ -430,7 +448,7 @@ const ExpenseRecords = () => {
                               <p className="text-sm font-medium text-foreground">Payment #{payment.id}</p>
                               <p className="text-xs text-muted-foreground flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
-                                {new Date(payment.created_at).toLocaleDateString()}
+                                {new Date(payment.paid_at).toLocaleDateString()}
                               </p>
                             </div>
                           </div>
@@ -550,7 +568,7 @@ const ExpenseRecords = () => {
                       <option value="">Select Employee</option>
                       <option value="create" className="text-primary font-medium">+ Create New Employee</option>
                       {employees.map((emp) => (
-                        <option key={emp.id} value={emp.id}>{emp.full_name}</option>
+                        <option key={emp.id} value={emp.employee_id}>{emp.full_name}</option>
                       ))}
                     </select>
                   </div>

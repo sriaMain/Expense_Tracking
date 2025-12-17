@@ -127,27 +127,27 @@ export const toggleUserStatus = createAsyncThunk(
     }
 );
 
-export const resetPassword = createAsyncThunk(
-    'users/resetPassword',
-    async ({ id, new_password }: { id: number; new_password: string }, { rejectWithValue }) => {
-        try {
-            const response = await axiosInstance.post(`users/${id}/reset-password/`, { new_password });
-            return response.data;
-        } catch (error: any) {
-            return rejectWithValue(
-                error.response?.data?.error ||
-                error.response?.data?.detail ||
-                'Failed to reset password'
-            );
-        }
-    }
-);
+// export const resetPassword = createAsyncThunk(
+//     'users/resetPassword',
+//     async ({ id, new_password }: { id: number; new_password: string }, { rejectWithValue }) => {
+//         try {
+//             const response = await axiosInstance.post(`reset-password/`, { new_password });
+//             return response.data;
+//         } catch (error: any) {
+//             return rejectWithValue(
+//                 error.response?.data?.error ||
+//                 error.response?.data?.detail ||
+//                 'Failed to reset password'
+//             );
+//         }
+//     }
+// );
 
 export const changePassword = createAsyncThunk(
     'users/changePassword',
     async ({ id, old_password, new_password }: { id: number; old_password?: string; new_password: string }, { rejectWithValue }) => {
         try {
-            const response = await axiosInstance.post(`users/${id}/change-password/`, { new_password, old_password });
+            const response = await axiosInstance.post(`reset-password/`, { new_password, old_password });
             return response.data;
         } catch (error: any) {
             return rejectWithValue(
@@ -235,18 +235,18 @@ const userSlice = createSlice({
             });
 
         // Reset Password
-        builder
-            .addCase(resetPassword.pending, (state) => {
-                state.isLoading = true;
-                state.error = null;
-            })
-            .addCase(resetPassword.fulfilled, (state) => {
-                state.isLoading = false;
-            })
-            .addCase(resetPassword.rejected, (state, action) => {
-                state.isLoading = false;
-                state.error = action.payload as string;
-            });
+        // builder
+        //     .addCase(resetPassword.pending, (state) => {
+        //         state.isLoading = true;
+        //         state.error = null;
+        //     })
+        //     .addCase(resetPassword.fulfilled, (state) => {
+        //         state.isLoading = false;
+        //     })
+        //     .addCase(resetPassword.rejected, (state, action) => {
+        //         state.isLoading = false;
+        //         state.error = action.payload as string;
+        //     });
 
         // Change Password
         builder

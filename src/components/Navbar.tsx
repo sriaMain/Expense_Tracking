@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import axiosInstance from '@/lib/axiosInstance';
 
 const Navbar = () => {
   const dispatch = useAppDispatch();
@@ -30,15 +31,50 @@ const Navbar = () => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
-  const handleLogout = () => {
-    dispatch(logout());
-    toast.success('Logged out successfully');
-    navigate('/');
-    setMobileMenuOpen(false);
-  };
+  // const handleLogout = () => {
+  //   dispatch(logout());
+  //   axiosInstance.post('logout/')
+  //   toast.success('Logged out successfully');
+  //   navigate('/');
+  //   setMobileMenuOpen(false);
+  // };
+  
+  async function handleSignOut(e) {
+    e?.preventDefault?.();
 
+    const refresh = localStorage.getItem('refresh') || sessionStorage.getItem('refresh');
+
+    try {
+      // if (refresh) {
+        await axiosInstance.post('logout/', { refresh });
+      // } else {
+      //   // if refresh stored in HttpOnly cookie, backend will read it — send credentials
+      //   await axiosInstance.post('logout/', null, { withCredentials: true });
+      // }
+    } catch (err) {
+      // ignore errors — still sign out client-side
+    } finally {
+      // clear redux state + client storage, notify and redirect
+      dispatch(logout());
+      localStorage.removeItem('access');
+      localStorage.removeItem('refresh');
+      sessionStorage.removeItem('access');
+      sessionStorage.removeItem('refresh');
+      toast.success('Logged out successfully');
+      setDropdownOpen(false);
+      setMobileMenuOpen(false);
+      navigate('/');
+    }
+  }
   const handleResetPassword = async () => {
-    if (!user?.id || !newPassword) return;
+    if (!user?.id) {
+      toast.error('User session invalid. Please login again.');
+      return;
+    }
+    if (!newPassword) {
+      toast.error('Please enter a new password');
+      return;
+    }
 
     try {
       // Assuming user.id is available and matches the backend ID type (string/number)
@@ -137,7 +173,7 @@ const Navbar = () => {
                         Reset Password
                       </button>
                       <button
-                        onClick={handleLogout}
+                        onClick={handleSignOut}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-destructive/10 text-destructive flex items-center gap-2"
                       >
                         <LogOut className="w-4 h-4" />
@@ -177,8 +213,8 @@ const Navbar = () => {
 
                 <div className="pt-4 mt-4 border-t border-border">
                   <div className="px-4 py-2 mb-2">
-                    <p className="text-sm font-medium text-foreground">{user?.fullName}</p>
-                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                    <p className="text-sm font-medium text-foreground">{user?.username}</p>
+                    {/* <p className="text-xs text-muted-foreground">{user?.email}</p> */}
                   </div>
                   <button
                     onClick={() => {
@@ -191,7 +227,7 @@ const Navbar = () => {
                     <span>Reset Password</span>
                   </button>
                   <button
-                    onClick={handleLogout}
+                    onClick={handleSignOut}
                     className="flex items-center gap-2 w-full px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
                   >
                     <LogOut className="w-4 h-4" />

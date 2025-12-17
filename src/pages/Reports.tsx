@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/hooks/useAppDispatch';
 import { fetchExpenses } from '@/store/slices/expenseSlice';
 import { fetchEmployees } from '@/store/slices/employeeSlice';
-import { Download, FileSpreadsheet, FileText, Calendar, Loader2 } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Calendar, Loader2, IndianRupee } from 'lucide-react';
 import { toast } from 'sonner';
+import axiosInstance from '@/lib/axiosInstance';
 
 const Reports = () => {
   const dispatch = useAppDispatch();
@@ -45,15 +46,61 @@ const Reports = () => {
   const paidAmount = filteredExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_paid), 0);
   const pendingAmount = totalAmount - paidAmount;
 
-  const handleDownloadExcel = () => {
-    // In production, this would generate actual Excel file
-    toast.success('Excel report download initiated');
+  const getDatePayload = () => {
+    let start = '';
+    let end = '';
+
+    if (dateRange === 'monthly') {
+      const [year, month] = selectedMonth.split('-');
+      start = `${selectedMonth}-01`;
+      // Get last day of month
+      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+      end = `${selectedMonth}-${lastDay}`;
+    } else {
+      start = startDate;
+      end = endDate;
+    }
+    return { start_date: start, end_date: end };
   };
 
-  const handleDownloadPDF = () => {
-    // In production, this would generate actual PDF file
-    toast.success('PDF report download initiated');
+  const downloadReport = async (type: 'excel' | 'pdf') => {
+    const { start_date, end_date } = getDatePayload();
+
+    if (!start_date || !end_date) {
+      toast.error('Please select a valid date range');
+      return;
+    }
+
+    const toastId = toast.loading(`Generating ${type.toUpperCase()} report...`);
+
+    try {
+      const endpoint = type === 'excel' ? 'reports/excel/' : 'reports/pdf/';
+      const response = await axiosInstance.post(endpoint, {
+        start_date,
+        end_date
+      }, {
+        responseType: 'blob' // Important for file download
+      });
+
+      // Create blob link to download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      const extension = type === 'excel' ? 'xlsx' : 'pdf';
+      link.setAttribute('download', `expense_report_${start_date}_to_${end_date}.${extension}`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+
+      toast.success(`${type.toUpperCase()} report downloaded successfully`, { id: toastId });
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error(`Failed to download ${type.toUpperCase()} report`, { id: toastId });
+    }
   };
+
+  const handleDownloadExcel = () => downloadReport('excel');
+  const handleDownloadPDF = () => downloadReport('pdf');
 
   // Vendor (Employee) summary
   const vendorSummary = employees.map(emp => {
@@ -106,8 +153,8 @@ const Reports = () => {
             <button
               onClick={() => setDateRange('monthly')}
               className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-lg transition-colors ${dateRange === 'monthly'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
             >
               Monthly
@@ -115,8 +162,8 @@ const Reports = () => {
             <button
               onClick={() => setDateRange('custom')}
               className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-lg transition-colors ${dateRange === 'custom'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
             >
               Custom
@@ -156,17 +203,17 @@ const Reports = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
         <div className="stat-card">
           <p className="text-sm text-muted-foreground mb-2">Total Expenses</p>
-          <p className="text-xl sm:text-2xl font-bold text-foreground">${totalAmount.toLocaleString()}</p>
+          <p className="text-xl sm:text-2xl font-bold text-foreground">₹{totalAmount.toLocaleString()}</p>
           <p className="text-xs text-muted-foreground mt-1">{filteredExpenses.length} transactions</p>
         </div>
         <div className="stat-card">
           <p className="text-sm text-muted-foreground mb-2">Paid Amount</p>
-          <p className="text-xl sm:text-2xl font-bold text-success">${paidAmount.toLocaleString()}</p>
+          <p className="text-xl sm:text-2xl font-bold text-success">₹{paidAmount.toLocaleString()}</p>
           <p className="text-xs text-muted-foreground mt-1">{filteredExpenses.filter(e => e.status === 'PAID').length} fully paid</p>
         </div>
         <div className="stat-card">
           <p className="text-sm text-muted-foreground mb-2">Pending Amount</p>
-          <p className="text-xl sm:text-2xl font-bold text-warning">${pendingAmount.toLocaleString()}</p>
+          <p className="text-xl sm:text-2xl font-bold text-warning">₹{pendingAmount.toLocaleString()}</p>
           <p className="text-xs text-muted-foreground mt-1">{filteredExpenses.filter(e => e.status !== 'PAID').length} pending/partial</p>
         </div>
       </div>
@@ -187,11 +234,11 @@ const Reports = () => {
                 <div className="flex gap-4 sm:text-right">
                   <div>
                     <p className="text-xs text-muted-foreground">Total</p>
-                    <p className="font-semibold text-foreground">${vendor.total.toLocaleString()}</p>
+                    <p className="font-semibold text-foreground">₹{vendor.total.toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Paid</p>
-                    <p className="font-semibold text-success">${vendor.paid.toLocaleString()}</p>
+                    <p className="font-semibold text-success">₹{vendor.paid.toLocaleString()}</p>
                   </div>
                 </div>
               </div>
@@ -228,14 +275,14 @@ const Reports = () => {
                   <tr key={expense.id} className="table-row-hover border-b border-border last:border-0">
                     <td className="py-4 px-6 text-sm text-muted-foreground">{expense.created_at?.split('T')[0]}</td>
                     <td className="py-4 px-6 text-sm font-medium text-foreground">{getEmployeeName(expense.employee)}</td>
-                    <td className="py-4 px-6 text-sm font-semibold text-foreground">${parseFloat(expense.amount_requested).toLocaleString()}</td>
-                    <td className="py-4 px-6 text-sm font-semibold text-foreground">${parseFloat(expense.amount_paid).toLocaleString()}</td>
+                    <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</td>
+                    <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</td>
                     <td className="py-4 px-6">
                       <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
-                          ? 'bg-success/10 text-success'
-                          : expense.status === 'PARTIAL'
-                            ? 'bg-warning/10 text-warning'
-                            : 'bg-destructive/10 text-destructive'
+                        ? 'bg-success/10 text-success'
+                        : expense.status === 'PARTIAL'
+                          ? 'bg-warning/10 text-warning'
+                          : 'bg-destructive/10 text-destructive'
                         }`}>
                         {expense.status}
                       </span>
@@ -263,10 +310,10 @@ const Reports = () => {
                   <p className="font-medium text-foreground">{getEmployeeName(expense.employee)}</p>
                 </div>
                 <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
-                    ? 'bg-success/10 text-success'
-                    : expense.status === 'PARTIAL'
-                      ? 'bg-warning/10 text-warning'
-                      : 'bg-destructive/10 text-destructive'
+                  ? 'bg-success/10 text-success'
+                  : expense.status === 'PARTIAL'
+                    ? 'bg-warning/10 text-warning'
+                    : 'bg-destructive/10 text-destructive'
                   }`}>
                   {expense.status}
                 </span>
@@ -274,11 +321,11 @@ const Reports = () => {
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <p className="text-muted-foreground">Requested</p>
-                  <p className="font-semibold text-foreground">${parseFloat(expense.amount_requested).toLocaleString()}</p>
+                  <p className="font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Paid</p>
-                  <p className="font-semibold text-foreground">${parseFloat(expense.amount_paid).toLocaleString()}</p>
+                  <p className="font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</p>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-2">{expense.created_at?.split('T')[0]}</p>

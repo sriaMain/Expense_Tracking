@@ -34,7 +34,7 @@ const Login = () => {
       console.log('Login successful, response data:', data);
 
       // Handle different response structures
-      const token = data.token || data.access || data.key || data.accessToken;
+      const token = data.refreshToken || data.access || data.key || data.accessToken;
 
       // If no token is found in the response, throw an error
       if (!token) {

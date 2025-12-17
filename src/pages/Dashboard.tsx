@@ -3,7 +3,7 @@ import { useAppSelector, useAppDispatch } from '@/hooks/useAppDispatch';
 import { fetchExpenses } from '@/store/slices/expenseSlice';
 import { fetchEmployees } from '@/store/slices/employeeSlice';
 import {
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   Users,
   Clock,
@@ -35,7 +35,7 @@ const Dashboard = () => {
   }, [dispatch]);
 
   // Helper to get employee name
-  const getEmployeeName = (id: number) => employees.find(e => e.id === id)?.full_name || 'Unknown Employee';
+  const getEmployeeName = (id: number) => employees.find(e => e.employee_id === id)?.full_name || 'Unknown Employee';
 
   // Calculate totals
   const totalExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount_requested), 0);
@@ -70,8 +70,8 @@ const Dashboard = () => {
   const summaryCards = [
     {
       title: 'Total Expenses',
-      value: `$${totalExpenses.toLocaleString()}`,
-      icon: DollarSign,
+      value: `₹${totalExpenses.toLocaleString()}`,
+      icon: IndianRupee,
       change: '+12.5%',
       isPositive: true,
       bgColor: 'bg-primary/10',
@@ -79,7 +79,7 @@ const Dashboard = () => {
     },
     {
       title: 'Paid Amount',
-      value: `$${paidExpenses.toLocaleString()}`,
+      value: `₹${paidExpenses.toLocaleString()}`,
       icon: TrendingUp,
       change: '+8.2%',
       isPositive: true,
@@ -88,7 +88,7 @@ const Dashboard = () => {
     },
     {
       title: 'Pending Payouts',
-      value: `$${pendingExpenses.toLocaleString()}`,
+      value: `₹${pendingExpenses.toLocaleString()}`,
       icon: Clock,
       change: '-3.1%',
       isPositive: false,
@@ -150,7 +150,7 @@ const Dashboard = () => {
             <BarChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `$${v / 1000}k`} />
+              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `₹${v / 1000}k`} />
               <Tooltip
                 contentStyle={{
                   backgroundColor: 'hsl(var(--card))',
@@ -158,7 +158,7 @@ const Dashboard = () => {
                   borderRadius: '8px',
                   fontSize: '12px'
                 }}
-                formatter={(value: number) => [`$${value.toLocaleString()}`, 'Amount']}
+                formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Amount']}
               />
               <Bar dataKey="amount" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -191,7 +191,7 @@ const Dashboard = () => {
                     borderRadius: '8px',
                     fontSize: '12px'
                   }}
-                  formatter={(value: number) => [`$${value.toLocaleString()}`, 'Amount']}
+                  formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Amount']}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -239,8 +239,8 @@ const Dashboard = () => {
                 expenses.slice(0, 5).map((expense) => (
                   <tr key={expense.id} className="table-row-hover border-b border-border last:border-0">
                     <td className="py-4 px-4 text-sm font-medium text-foreground">{getEmployeeName(expense.employee)}</td>
-                    <td className="py-4 px-4 text-sm font-semibold text-foreground">${parseFloat(expense.amount_requested).toLocaleString()}</td>
-                    <td className="py-4 px-4 text-sm font-semibold text-foreground">${parseFloat(expense.amount_paid).toLocaleString()}</td>
+                    <td className="py-4 px-4 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</td>
+                    <td className="py-4 px-4 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</td>
                     <td className="py-4 px-4">
                       <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
                           ? 'bg-success/10 text-success'
@@ -283,11 +283,11 @@ const Dashboard = () => {
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <p className="text-muted-foreground">Requested</p>
-                  <p className="font-semibold text-foreground">${parseFloat(expense.amount_requested).toLocaleString()}</p>
+                  <p className="font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Paid</p>
-                  <p className="font-semibold text-foreground">${parseFloat(expense.amount_paid).toLocaleString()}</p>
+                  <p className="font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</p>
                 </div>
               </div>
             </div>

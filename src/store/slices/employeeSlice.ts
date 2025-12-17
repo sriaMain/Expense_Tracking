@@ -28,6 +28,7 @@ export const fetchEmployees = createAsyncThunk(
     async (_, { rejectWithValue }) => {
         try {
             const response = await axiosInstance.get('employees/');
+            console.log('Fetched employees:', response.data);
             return response.data;
         } catch (error: any) {
             return rejectWithValue(error.response?.data?.detail || 'Failed to fetch employees');
@@ -40,6 +41,7 @@ export const addEmployee = createAsyncThunk(
     async (employeeData: { full_name: string; department: string; designation: string }, { rejectWithValue }) => {
         try {
             const response = await axiosInstance.post('employees/', employeeData);
+            
             return response.data;
         } catch (error: any) {
             return rejectWithValue(error.response?.data?.detail || 'Failed to add employee');
