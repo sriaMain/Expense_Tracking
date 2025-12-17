@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/hooks/useAppDispatch';
 import { loginStart, loginSuccess, loginFailure } from '@/store/slices/authSlice';
-import { DollarSign, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { IndianRupee, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import axiosInstance from '@/lib/axiosInstance';
 import { toast } from 'sonner';
@@ -72,7 +72,7 @@ const Login = () => {
           {/* Logo */}
           <div className="flex items-center justify-center gap-3 mb-8">
             <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
-              <DollarSign className="w-7 h-7 text-primary-foreground" />
+              <IndianRupee className="w-7 h-7 text-primary-foreground" />
             </div>
             <span className="text-2xl font-semibold text-foreground">ExpenseFlow</span>
           </div>
@@ -89,6 +89,7 @@ const Login = () => {
               <label className="block text-sm font-medium text-foreground mb-2">
                 Email / Username
               </label>
+              
               <input
                 type="text"
                 value={email}
@@ -98,11 +99,18 @@ const Login = () => {
                 disabled={isLoading}
               />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-foreground">
+                  Password
+                </label>
+                 <Link
+                to="/forgot-password"
+                className="text-sm text-primary hover:underline font-medium"
+              >
+                Forgot password?
+              </Link>
+              </div>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -120,6 +128,7 @@ const Login = () => {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+             
             </div>
 
             {error && (
