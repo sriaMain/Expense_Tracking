@@ -17,6 +17,7 @@ export interface Expense {
   updated_by?: UserInfo | null;
   created_at?: string;
   updated_at?: string;
+  payments?: Payment[]; // Payments included in the expense response
 }
 
 export interface Payment {

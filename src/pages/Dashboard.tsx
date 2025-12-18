@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/hooks/useAppDispatch';
 import { fetchExpenses } from '@/store/slices/expenseSlice';
-import { fetchEmployees } from '@/store/slices/employeeSlice';
+import { fetchEmployees, fetchEmployeeExpenses } from '@/store/slices/employeeSlice';
 import {
   IndianRupee,
   TrendingUp,
@@ -32,6 +32,18 @@ const Dashboard = () => {
     dispatch(fetchExpenses());
     dispatch(fetchEmployees());
   }, [dispatch]);
+
+  // Fetch individual employee expenses when employees are loaded
+  useEffect(() => {
+    if (employees.length > 0) {
+      employees.forEach(emp => {
+        const id = emp.employee_id || emp.id;
+        if (id) {
+          dispatch(fetchEmployeeExpenses(id));
+        }
+      });
+    }
+  }, [dispatch, employees.map(e => e.employee_id || e.id).join(',')]); // Only re-run if the list of IDs changes
 
   // Helper to get employee name
   const getEmployeeName = (id: number) => {
@@ -83,15 +95,16 @@ const Dashboard = () => {
   const monthlyData = getMonthlyData();
 
   // Vendor (Employee) distribution data
+  // Now using the total_expenses fetched from the individual endpoint
   const vendorDistribution = employees.map((emp) => {
-    const empTotal = expenses
-      .filter(exp => exp.employee === emp.id)
-      .reduce((sum, exp) => sum + parseFloat(exp.amount_requested), 0);
     return {
       name: emp.employee_name || emp.full_name || emp.full_nmae || 'Unknown',
-      value: empTotal,
+      value: emp.total_expenses || 0,
     };
   }).filter(v => v.value > 0);
+
+  console.log('Vendor Distribution Data:', vendorDistribution);
+  console.log('Employees:', employees.map(e => ({ name: e.employee_name || e.full_name, total: e.total_expenses })));
 
   const COLORS = ['hsl(217, 91%, 50%)', 'hsl(142, 71%, 45%)', 'hsl(38, 92%, 50%)', 'hsl(280, 65%, 60%)'];
 
@@ -198,40 +211,46 @@ const Dashboard = () => {
           <h2 className="section-title">Employee/Vendor Distribution</h2>
           <div className="flex flex-col sm:flex-row items-center">
             <ResponsiveContainer width="100%" height={250} className="sm:!w-1/2">
-              <LineChart data={vendorDistribution} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis
-                  dataKey="name"
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={10}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={10}
-                  tickFormatter={(v) => `₹${v / 1000}k`}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    fontSize: '12px'
-                  }}
-                  formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Amount']}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  dot={{ r: 4, fill: 'hsl(var(--primary))' }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
+              {vendorDistribution.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-sm text-muted-foreground">No employee expense data available</p>
+                </div>
+              ) : (
+                <LineChart data={vendorDistribution} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis
+                    dataKey="name"
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={10}
+                    tickFormatter={(v) => `₹${v / 1000}k`}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                      fontSize: '12px'
+                    }}
+                    formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Amount']}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={{ r: 4, fill: 'hsl(var(--primary))' }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              )}
             </ResponsiveContainer>
             <div className="w-full sm:w-1/2 space-y-2 sm:space-y-3 mt-4 sm:mt-0 pl-0 sm:pl-4">
               {vendorDistribution.length === 0 ? (

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/hooks/useAppDispatch';
-import { fetchExpenses, addExpense, makePayment, fetchPayments, clearPayments } from '@/store/slices/expenseSlice';
+import { fetchExpenses, addExpense, makePayment } from '@/store/slices/expenseSlice';
 import { fetchEmployees, addEmployee } from '@/store/slices/employeeSlice';
 import { fetchCategories, addCategory } from '@/store/slices/categorySlice';
 import { Plus, X, IndianRupee, Loader2, Receipt, Calendar } from 'lucide-react';
@@ -10,7 +10,7 @@ import SearchableSelect from '@/components/SearchableSelect';
 
 const ExpenseRecords = () => {
   const dispatch = useAppDispatch();
-  const { expenses, payments, isLoading: expensesLoading, paymentsLoading, selectedMonth } = useAppSelector((state) => state.expense);
+  const { expenses, isLoading: expensesLoading, selectedMonth } = useAppSelector((state) => state.expense);
   const { employees, isLoading: employeesLoading } = useAppSelector((state) => state.employee);
   const { categories, isLoading: categoriesLoading } = useAppSelector((state) => state.category);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -56,8 +56,6 @@ const ExpenseRecords = () => {
 
   const handleRowClick = (expenseId: number) => {
     setSelectedExpenseId(expenseId);
-    dispatch(clearPayments());
-    dispatch(fetchPayments(expenseId));
     setShowDetailsModal(true);
   };
 
@@ -88,6 +86,7 @@ const ExpenseRecords = () => {
       toast.success('Expense added successfully');
       setShowExpenseModal(false);
       resetExpenseForm();
+      dispatch(fetchExpenses());
     } catch (error) {
       toast.error((error as string) || 'Failed to add expense');
     }
@@ -170,11 +169,8 @@ const ExpenseRecords = () => {
       toast.success('Payment recorded successfully');
       setShowPaymentModal(false);
       setPaymentAmount('');
-      // Refresh payments list in details modal
-      if (selectedExpenseId) {
-        dispatch(fetchPayments(selectedExpenseId));
-        dispatch(fetchExpenses());
-      }
+      // Refresh expenses to get updated payment data
+      dispatch(fetchExpenses());
     } catch (error) {
       toast.error((error as string) || 'Failed to record payment');
     }
@@ -445,17 +441,17 @@ const ExpenseRecords = () => {
                     )}
                   </div>
 
-                  {paymentsLoading ? (
+                  {!selectedExpense.payments ? (
                     <div className="flex justify-center py-4">
                       <Loader2 className="w-6 h-6 animate-spin text-primary" />
                     </div>
-                  ) : payments.length === 0 ? (
+                  ) : selectedExpense.payments.length === 0 ? (
                     <div className="text-center py-6 bg-muted/30 rounded-lg border border-dashed border-border">
                       <p className="text-sm text-muted-foreground">No payments made yet</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {payments.map((payment) => (
+                      {selectedExpense.payments.map((payment) => (
                         <div key={payment.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 bg-success/10 rounded-full flex items-center justify-center">

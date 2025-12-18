@@ -15,6 +15,7 @@ export interface Employee {
         id: number;
         username: string;
     };
+    total_expenses?: number;
 }
 
 interface EmployeeState {
@@ -51,6 +52,18 @@ export const addEmployee = createAsyncThunk(
             return response.data;
         } catch (error: any) {
             return rejectWithValue(error.response?.data?.detail || 'Failed to add employee');
+        }
+    }
+);
+
+export const fetchEmployeeExpenses = createAsyncThunk(
+    'employees/fetchEmployeeExpenses',
+    async (employeeId: number, { rejectWithValue }) => {
+        try {
+            const response = await axiosInstance.get(`employees/${employeeId}/expenses/`);
+            return { employeeId, expenses: response.data };
+        } catch (error: any) {
+            return rejectWithValue(error.response?.data?.detail || 'Failed to fetch employee expenses');
         }
     }
 );
@@ -92,6 +105,15 @@ const employeeSlice = createSlice({
             .addCase(addEmployee.rejected, (state, action) => {
                 state.isLoading = false;
                 state.error = action.payload as string;
+            })
+            .addCase(fetchEmployeeExpenses.fulfilled, (state, action) => {
+                const { employeeId, expenses } = action.payload;
+                const employeeIndex = state.employees.findIndex(e => (e.employee_id === employeeId || e.id === employeeId));
+                if (employeeIndex !== -1) {
+                    // Calculate total expenses for this employee
+                    const total = expenses.reduce((sum: number, exp: any) => sum + parseFloat(exp.amount_requested || '0'), 0);
+                    state.employees[employeeIndex].total_expenses = total;
+                }
             });
     },
 });
