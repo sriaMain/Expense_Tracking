@@ -6,6 +6,7 @@ import { fetchCategories, addCategory } from '@/store/slices/categorySlice';
 import { Plus, X, IndianRupee, Loader2, Receipt, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import SearchableSelect from '@/components/SearchableSelect';
 
 const ExpenseRecords = () => {
   const dispatch = useAppDispatch();
@@ -193,19 +194,11 @@ const ExpenseRecords = () => {
   };
 
   const handleEmployeeChange = (value: string) => {
-    if (value === 'create') {
-      setShowEmployeeForm(true);
-    } else {
-      setSelectedEmployee(value);
-    }
+    setSelectedEmployee(value);
   };
 
   const handleCategoryChange = (value: string) => {
-    if (value === 'create') {
-      setShowCategoryForm(true);
-    } else {
-      setSelectedCategory(value);
-    }
+    setSelectedCategory(value);
   };
 
   // Filter expenses by month (assuming date is created_at or updated_at)
@@ -582,37 +575,33 @@ const ExpenseRecords = () => {
               ) : (
                 /* Expense Form */
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Employee / Vendor</label>
-                    <select
-                      value={selectedEmployee}
-                      onChange={(e) => handleEmployeeChange(e.target.value)}
-                      className="input-field"
-                    >
-                      <option value="">Select Employee</option>
-                      <option value="create" className="text-primary font-medium">+ Create New Employee</option>
-                      {employees.map((emp) => (
-                        <option key={emp.employee_id || emp.id} value={emp.employee_id || emp.id}>
-                          {emp.employee_name || emp.full_name || emp.full_nmae || 'Unknown'}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <SearchableSelect
+                    label="Employee / Vendor"
+                    placeholder="Select Employee"
+                    value={selectedEmployee}
+                    onChange={(value) => handleEmployeeChange(value)}
+                    options={employees.map((emp) => ({
+                      value: (emp.employee_id || emp.id).toString(),
+                      label: emp.employee_name || emp.full_name || emp.full_nmae || 'Unknown',
+                    }))}
+                    showCreateOption={true}
+                    createOptionLabel="+ Create New Employee"
+                    onCreateClick={() => setShowEmployeeForm(true)}
+                  />
 
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Category</label>
-                    <select
-                      value={selectedCategory}
-                      onChange={(e) => handleCategoryChange(e.target.value)}
-                      className="input-field"
-                    >
-                      <option value="">Select Category</option>
-                      <option value="create" className="text-primary font-medium">+ Create New Category</option>
-                      {categories.map((cat) => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <SearchableSelect
+                    label="Category"
+                    placeholder="Select Category"
+                    value={selectedCategory}
+                    onChange={(value) => handleCategoryChange(value)}
+                    options={categories.map((cat) => ({
+                      value: cat.id.toString(),
+                      label: cat.name,
+                    }))}
+                    showCreateOption={true}
+                    createOptionLabel="+ Create New Category"
+                    onCreateClick={() => setShowCategoryForm(true)}
+                  />
 
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">Amount Requested</label>
