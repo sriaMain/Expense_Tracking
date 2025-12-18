@@ -5,6 +5,8 @@ export interface Employee {
     id?: number;  // May be present in list responses
     employee_id?: number;  // May be present in some responses
     employee_name: string;  // API uses employee_name, not full_name
+    full_name?: string; // Some responses might use this
+    full_nmae?: string; // Backend typo
     department: string;
     designation: string;
     joined_at?: string;  // Optional since it's not in create response
@@ -80,10 +82,10 @@ const employeeSlice = createSlice({
                 state.error = null;
             })
             .addCase(addEmployee.fulfilled, (state, action) => {
-                console.log('EmployeeSlice: Employee added to store:', action.payload);
                 state.isLoading = false;
-                state.employees.push(action.payload);
-                console.log('EmployeeSlice: Total employees now:', state.employees.length);
+                if (action.payload) {
+                    state.employees.push(action.payload);
+                }
             })
             .addCase(addEmployee.rejected, (state, action) => {
                 state.isLoading = false;

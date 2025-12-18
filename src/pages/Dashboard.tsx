@@ -19,9 +19,8 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
+  LineChart,
+  Line
 } from 'recharts';
 
 const Dashboard = () => {
@@ -35,24 +34,53 @@ const Dashboard = () => {
   }, [dispatch]);
 
   // Helper to get employee name
-  const getEmployeeName = (id: number) => employees.find(e => e.employee_id === id)?.employee_name || 'Unknown Employee';
+  const getEmployeeName = (id: number) => {
+    const emp = employees.find(e => e.employee_id === id);
+    return emp?.employee_name || emp?.full_name || emp?.full_nmae || 'Unknown Employee';
+  };
 
   // Calculate totals
   const totalExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount_requested), 0);
   const paidExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount_paid), 0);
   const pendingExpenses = totalExpenses - paidExpenses;
 
-  // Monthly chart data (Mocked for now as we need date parsing logic that matches backend format)
-  // Assuming backend sends created_at in ISO format
-  const monthlyData = [
-    { month: 'Jul', amount: 0 },
-    { month: 'Aug', amount: 0 },
-    { month: 'Sep', amount: 0 },
-    { month: 'Oct', amount: 0 },
-    { month: 'Nov', amount: 0 },
-    { month: 'Dec', amount: 0 },
-    { month: 'Jan', amount: totalExpenses }, // Just putting total here for visualization
-  ];
+  // Calculate monthly totals dynamically
+  const getMonthlyData = () => {
+    const last6Months = [];
+    const today = new Date();
+
+    // Generate last 6 months keys
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const monthName = d.toLocaleString('default', { month: 'short' });
+      const year = d.getFullYear();
+      const key = `${year}-${String(d.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM format
+
+      last6Months.push({
+        key,
+        month: monthName,
+        amount: 0
+      });
+    }
+
+    // Aggregate expenses
+    expenses.forEach(exp => {
+      const dateStr = exp.created_at || exp.updated_at;
+      if (!dateStr) return;
+
+      // Extract YYYY-MM from ISO string (e.g., 2025-12-17T...)
+      const expMonthKey = dateStr.substring(0, 7);
+
+      const monthData = last6Months.find(m => m.key === expMonthKey);
+      if (monthData) {
+        monthData.amount += parseFloat(exp.amount_requested || '0');
+      }
+    });
+
+    return last6Months;
+  };
+
+  const monthlyData = getMonthlyData();
 
   // Vendor (Employee) distribution data
   const vendorDistribution = employees.map((emp) => {
@@ -60,7 +88,7 @@ const Dashboard = () => {
       .filter(exp => exp.employee === emp.id)
       .reduce((sum, exp) => sum + parseFloat(exp.amount_requested), 0);
     return {
-      name: emp.employee_name,
+      name: emp.employee_name || emp.full_name || emp.full_nmae || 'Unknown',
       value: empTotal,
     };
   }).filter(v => v.value > 0);
@@ -169,21 +197,23 @@ const Dashboard = () => {
         <div className="card-elevated p-4 sm:p-6">
           <h2 className="section-title">Employee/Vendor Distribution</h2>
           <div className="flex flex-col sm:flex-row items-center">
-            <ResponsiveContainer width="100%" height={200} className="sm:!w-1/2">
-              <PieChart>
-                <Pie
-                  data={vendorDistribution}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {vendorDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
+            <ResponsiveContainer width="100%" height={250} className="sm:!w-1/2">
+              <LineChart data={vendorDistribution} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis
+                  dataKey="name"
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={10}
+                  tickFormatter={(v) => `₹${v / 1000}k`}
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: 'hsl(var(--card))',
@@ -193,21 +223,28 @@ const Dashboard = () => {
                   }}
                   formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Amount']}
                 />
-              </PieChart>
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={2}
+                  dot={{ r: 4, fill: 'hsl(var(--primary))' }}
+                  activeDot={{ r: 6 }}
+                />
+              </LineChart>
             </ResponsiveContainer>
-            <div className="w-full sm:w-1/2 space-y-2 sm:space-y-3 mt-4 sm:mt-0">
+            <div className="w-full sm:w-1/2 space-y-2 sm:space-y-3 mt-4 sm:mt-0 pl-0 sm:pl-4">
               {vendorDistribution.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center">No data available</p>
               ) : (
                 vendorDistribution.map((vendor, index) => (
                   <div key={index} className="flex items-center gap-3">
                     <div
-                      className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                      className="w-3 h-3 rounded-full flex-shrink-0 bg-primary"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-foreground truncate">{vendor.name}</p>
-                      <p className="text-xs text-muted-foreground">${vendor.value.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">₹{vendor.value.toLocaleString()}</p>
                     </div>
                   </div>
                 ))

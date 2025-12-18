@@ -24,6 +24,7 @@ export interface Payment {
   expense: number;
   amount: string;
   created_at: string;
+  paid_at: string;
   created_by: number;
 }
 
@@ -151,17 +152,8 @@ const expenseSlice = createSlice({
       .addCase(makePayment.fulfilled, (state, action) => {
         state.isLoading = false;
         const payment = action.payload;
-        const expenseIndex = state.expenses.findIndex(e => e.id === payment.expense);
-        if (expenseIndex !== -1) {
-          const expense = state.expenses[expenseIndex];
-          const newPaidAmount = parseFloat(expense.amount_paid) + parseFloat(payment.amount);
-          state.expenses[expenseIndex].amount_paid = newPaidAmount.toFixed(2);
-          if (newPaidAmount >= parseFloat(expense.amount_requested)) {
-            state.expenses[expenseIndex].status = 'PAID';
-          } else {
-            state.expenses[expenseIndex].status = 'PARTIAL';
-          }
-        }
+        // We will rely on re-fetching expenses to get the updated status and amount_paid
+        // so we don't calculate it here manually.
         // Also add to current payments list if viewing this expense
         if (state.payments.length > 0 && state.payments[0].expense === payment.expense) {
           state.payments.unshift(payment);

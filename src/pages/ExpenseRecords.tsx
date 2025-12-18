@@ -45,7 +45,10 @@ const ExpenseRecords = () => {
   }, [dispatch]);
 
   // Helper to get names from IDs
-  const getEmployeeName = (id: number) => employees.find(e => e.employee_id === id)?.full_name || 'Unknown Employee';
+  const getEmployeeName = (id: number) => {
+    const emp = employees.find(e => e.employee_id === id || e.id === id);
+    return emp ? (emp.employee_name || emp.full_name || emp.full_nmae) : 'Unknown Employee';
+  };
   const getCategoryName = (id: number) => categories.find(c => c.id === id)?.name || 'Unknown Category';
 
 
@@ -105,7 +108,10 @@ const ExpenseRecords = () => {
       toast.success('Employee/Vendor created successfully');
       setShowEmployeeForm(false);
       // Auto-select the new employee
-      setSelectedEmployee(result.employee_id.toString());
+      const newEmployeeId = result.employee_id || result.id;
+      if (newEmployeeId) {
+        setSelectedEmployee(newEmployeeId.toString());
+      }
       resetEmployeeForm();
     } catch (error) {
       toast.error((error as string) || 'Failed to add employee');
@@ -148,6 +154,7 @@ const ExpenseRecords = () => {
       // Refresh payments list in details modal
       if (selectedExpenseId) {
         dispatch(fetchPayments(selectedExpenseId));
+        dispatch(fetchExpenses());
       }
     } catch (error) {
       toast.error((error as string) || 'Failed to record payment');
@@ -567,7 +574,9 @@ const ExpenseRecords = () => {
                       <option value="">Select Employee</option>
                       <option value="create" className="text-primary font-medium">+ Create New Employee</option>
                       {employees.map((emp) => (
-                        <option key={emp.employee_id} value={emp.employee_id}>{emp.full_name}</option>
+                        <option key={emp.employee_id || emp.id} value={emp.employee_id || emp.id}>
+                          {emp.employee_name || emp.full_name || emp.full_nmae || 'Unknown'}
+                        </option>
                       ))}
                     </select>
                   </div>

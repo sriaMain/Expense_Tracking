@@ -73,7 +73,9 @@ const categorySlice = createSlice({
             })
             .addCase(addCategory.fulfilled, (state, action) => {
                 state.isLoading = false;
-                state.categories.push(action.payload);
+                if (action.payload && typeof action.payload === 'object') {
+                    state.categories.push(action.payload);
+                }
             })
             .addCase(addCategory.rejected, (state, action) => {
                 state.isLoading = false;

@@ -22,7 +22,10 @@ const Reports = () => {
   }, [dispatch]);
 
   // Helper to get employee name
-  const getEmployeeName = (id: number) => employees.find(e => e.employee_id === id)?.employee_name || 'Unknown Employee';
+  const getEmployeeName = (id: number) => {
+    const emp = employees.find(e => e.employee_id === id || e.id === id);
+    return emp?.employee_name || emp?.full_name || emp?.full_nmae || 'Unknown Employee';
+  };
 
   // Filter expenses based on date range
   const getFilteredExpenses = () => {
@@ -107,7 +110,7 @@ const Reports = () => {
     const empExpenses = filteredExpenses.filter(exp => exp.employee === emp.id);
     return {
       id: emp.id,
-      name: emp.employee_name,
+      name: emp.employee_name || emp.full_name || emp.full_nmae || 'Unknown',
       total: empExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_requested), 0),
       paid: empExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_paid), 0),
       count: empExpenses.length,
