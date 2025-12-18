@@ -107,8 +107,26 @@ const ExpenseRecords = () => {
 
       toast.success('Employee/Vendor created successfully');
       setShowEmployeeForm(false);
+
       // Auto-select the new employee
-      const newEmployeeId = result.employee_id || result.id;
+      let newEmployeeId = result.employee_id || result.id;
+
+      // If ID is missing from create response, fetch list and find it
+      if (!newEmployeeId) {
+        const employeesList = await dispatch(fetchEmployees()).unwrap();
+        // Try to find the employee we just added by name
+        // Note: API might return 'employee_name' or 'full_name'
+        const found = employeesList.find((e: any) =>
+          (e.employee_name === empFullName) ||
+          (e.full_name === empFullName) ||
+          (e.full_nmae === empFullName)
+        );
+
+        if (found) {
+          newEmployeeId = found.employee_id || found.id;
+        }
+      }
+
       if (newEmployeeId) {
         setSelectedEmployee(newEmployeeId.toString());
       }

@@ -83,8 +83,10 @@ const employeeSlice = createSlice({
             })
             .addCase(addEmployee.fulfilled, (state, action) => {
                 state.isLoading = false;
-                if (action.payload) {
-                    state.employees.push(action.payload);
+                if (action.payload && typeof action.payload === 'object') {
+                    if (action.payload.id || action.payload.employee_id) {
+                        state.employees.push(action.payload);
+                    }
                 }
             })
             .addCase(addEmployee.rejected, (state, action) => {
