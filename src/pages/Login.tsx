@@ -89,7 +89,7 @@ const Login = () => {
               <label className="block text-sm font-medium text-foreground mb-2">
                 Email / Username
               </label>
-              
+
               <input
                 type="text"
                 value={email}
@@ -104,12 +104,12 @@ const Login = () => {
                 <label className="block text-sm font-medium text-foreground">
                   Password
                 </label>
-                 <Link
-                to="/forgot-password"
-                className="text-sm text-primary hover:underline font-medium"
-              >
-                Forgot password?
-              </Link>
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-primary hover:underline font-medium"
+                >
+                  Forgot password?
+                </Link>
               </div>
               <div className="relative">
                 <input
@@ -128,7 +128,7 @@ const Login = () => {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-             
+
             </div>
 
             {error && (

@@ -45,9 +45,16 @@ const VerifyOtp = () => {
 
         setIsLoading(true);
         try {
-            await axiosInstance.post('verify-otp/', { email, otp });
+            const response = await axiosInstance.post('verify-otp/', { email, otp });
+            const resetToken = response.data?.reset_token;
+
+            if (!resetToken) {
+                toast.error('Failed to get reset token. Please try again.');
+                return;
+            }
+
             toast.success('OTP verified successfully');
-            navigate('/reset-password', { state: { email } });
+            navigate('/reset-password', { state: { email, resetToken } });
         } catch (error: any) {
             const errorMessage = error.response?.data?.detail || error.response?.data?.message || 'Invalid or expired OTP.';
             toast.error(errorMessage);

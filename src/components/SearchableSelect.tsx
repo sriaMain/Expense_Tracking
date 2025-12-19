@@ -146,8 +146,8 @@ const SearchableSelect = ({
                                         type="button"
                                         onClick={() => handleOptionClick(option.value)}
                                         className={`w-full px-4 py-2.5 text-left hover:bg-muted transition-colors ${option.value === value
-                                                ? 'bg-primary/10 text-primary font-medium'
-                                                : 'text-foreground'
+                                            ? 'bg-primary/10 text-primary font-medium'
+                                            : 'text-foreground'
                                             }`}
                                     >
                                         {option.label}

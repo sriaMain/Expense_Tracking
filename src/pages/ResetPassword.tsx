@@ -14,6 +14,7 @@ const ResetPassword = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const email = location.state?.email;
+    const resetToken = location.state?.resetToken;
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -36,10 +37,16 @@ const ResetPassword = () => {
             return;
         }
 
+        if (!resetToken) {
+            toast.error('Invalid reset token. Please try again.');
+            navigate('/forgot-password');
+            return;
+        }
+
         setIsLoading(true);
         try {
             await axiosInstance.post('reset-password/', {
-                email,
+                reset_token: resetToken,
                 new_password: password,
                 confirm_password: confirmPassword
             });
