@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from django.db.models import Sum, F
 from .models import Employee, ExpenseCategory, Expense, Payment
 
 
@@ -7,16 +8,6 @@ class UserMiniSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "username"]
-
-
-class EmployeeSerializer(serializers.ModelSerializer):
-    created_by = UserMiniSerializer(read_only=True)
-
-    class Meta:
-        model = Employee
-        fields = "__all__"
-        read_only_fields = ["employee_id", "created_by"]
-
 
 class ExpenseCategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -80,11 +71,43 @@ class ExpenseSerializer(serializers.ModelSerializer):
         ]
 
     def get_remaining_amount(self, obj):
-        return obj.amount_requested - obj.amount_paid
-    
+        return obj.remaining_amount
+
+    def validate_amount_requested(self, value):
+        if value <= 0:
+            raise serializers.ValidationError(
+                "Amount requested must be greater than 0"
+            )
+        return value
+
     def validate(self, attrs):
         if self.instance and self.instance.status == Expense.STATUS_PAID:
             raise serializers.ValidationError(
                 {"error": "Paid expense cannot be modified"}
             )
         return attrs
+
+
+
+class EmployeeSerializer(serializers.ModelSerializer):
+    created_by = UserMiniSerializer(read_only=True)
+    expenses = ExpenseSerializer(
+        many=True,
+        read_only=True,
+        source="expense_set"
+    )
+    total_remaining_amount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Employee
+        fields = "__all__"
+        read_only_fields = [
+            "employee_id",
+            "created_by",
+        ]
+
+    def get_total_remaining_amount(self, obj):
+        result = obj.expense_set.aggregate(
+            total=Sum(F("amount_requested") - F("amount_paid"))
+        )
+        return result["total"] or 0

@@ -16,7 +16,7 @@ from .views import (
     LogoutAPIView,
     ForgotPasswordAPIView,
     VerifyOTPAPIView,
-    ResetPasswordAPIView,
+    ChangePasswordAPIView,
     EmployeePaymentsAPIView,EmployeeExpensesAPIView,
 )
 
@@ -26,6 +26,8 @@ urlpatterns = [
     path("forgot-password/", ForgotPasswordAPIView.as_view()),
     path("verify-otp/", VerifyOTPAPIView.as_view()),
     path("reset-password/", ResetPasswordAPIView.as_view()),
+    path("change-password/", ChangePasswordAPIView.as_view()),
+    
 
     path("users/", UserListCreateAPIView.as_view()),
     path("users/<int:pk>/", UserDetailAPIView.as_view()),

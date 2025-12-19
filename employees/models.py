@@ -4,6 +4,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
+from django.db.models import Q
 import uuid
 
 class Employee(models.Model):
@@ -28,27 +29,90 @@ class ExpenseCategory(models.Model):
         return self.name
 
 
+# class Expense(models.Model):
+#     STATUS_UNPAID = "UNPAID"
+#     STATUS_PARTIAL = "PARTIAL"
+#     STATUS_PAID = "PAID"
+
+#     employee = models.ForeignKey("Employee", on_delete=models.CASCADE)
+#     category = models.ForeignKey("ExpenseCategory", on_delete=models.PROTECT)
+
+#     amount_requested = models.DecimalField(max_digits=10, decimal_places=2)
+#     amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+#     status = models.CharField(
+#         max_length=10,
+#         choices=(
+#             (STATUS_UNPAID, "Unpaid"),
+#             (STATUS_PARTIAL, "Partially Paid"),
+#             (STATUS_PAID, "Paid"),
+#         ),
+#         default=STATUS_UNPAID,
+#     )
+
+#     created_by = models.ForeignKey(
+#         settings.AUTH_USER_MODEL,
+#         on_delete=models.SET_NULL,
+#         null=True,
+#         related_name="expenses_created",
+#     )
+
+#     updated_by = models.ForeignKey(
+#         settings.AUTH_USER_MODEL,
+#         on_delete=models.SET_NULL,
+#         null=True,
+#         blank=True,
+#         related_name="expenses_updated",
+#     )
+
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     updated_at = models.DateTimeField(auto_now=True)
+
+#     class Meta:
+#         constraints = [
+#             models.CheckConstraint(
+#                 condition=Q(amount_paid__gte=0),
+#                 name="expense_amount_paid_non_negative",
+#             ),
+#             models.CheckConstraint(
+#                 condition=Q(amount_requested__gt=0),
+#                 name="expense_amount_requested_positive",
+#             ),
+#         ]
+
+#     @property
+#     def remaining_amount(self):
+#         return self.amount_requested - self.amount_paid
+
+#     def __str__(self):
+#         return f"Expense #{self.id} | {self.employee} | {self.status}"
+
 class Expense(models.Model):
-    STATUS_UNPAID = "UNPAID"
+    STATUS_PENDING = "PENDING"
+    STATUS_PARTIAL = "PARTIAL"
     STATUS_PAID = "PAID"
 
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
-    category = models.ForeignKey(ExpenseCategory, on_delete=models.PROTECT)
+    employee = models.ForeignKey("Employee", on_delete=models.CASCADE)
+    category = models.ForeignKey("ExpenseCategory", on_delete=models.PROTECT)
 
     amount_requested = models.DecimalField(max_digits=10, decimal_places=2)
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     status = models.CharField(
-        max_length=10,
-        choices=((STATUS_UNPAID, "Unpaid"), (STATUS_PAID, "Paid")),
-        default=STATUS_UNPAID
+        max_length=20,
+        choices=(
+            (STATUS_PENDING, "Pending"),
+            (STATUS_PARTIAL, "Partial"),
+            (STATUS_PAID, "Paid"),
+        ),
+        default=STATUS_PENDING,
     )
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
-        related_name="expenses_created"
+        related_name="expenses_created",
     )
 
     updated_by = models.ForeignKey(
@@ -56,11 +120,31 @@ class Expense(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="expenses_updated"
+        related_name="expenses_updated",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(amount_paid__gte=0),
+                name="expense_amount_paid_non_negative",
+            ),
+            models.CheckConstraint(
+                condition=Q(amount_requested__gt=0),
+                name="expense_amount_requested_positive",
+            ),
+        ]
+
+    @property
+    def remaining_amount(self):
+        return self.amount_requested - self.amount_paid
+
+    def __str__(self):
+        return f"Expense #{self.id} | {self.employee} | {self.status}"
+
     
 class PasswordResetOTP(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
