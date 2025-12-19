@@ -48,9 +48,22 @@ const ExpenseRecords = () => {
   // Helper to get names from IDs
   const getEmployeeName = (id: number) => {
     const emp = employees.find(e => e.employee_id === id || e.id === id);
-    return emp ? (emp.employee_name || emp.full_name || emp.full_nmae) : 'Unknown Employee';
+    return emp ? (emp.employee_name || emp.full_name || emp.full_name) : 'Unknown Employee';
   };
   const getCategoryName = (id: number) => categories.find(c => c.id === id)?.name || 'Unknown Category';
+
+  const formatDateIST = (dateString?: string) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
 
 
 
@@ -78,7 +91,7 @@ const ExpenseRecords = () => {
       // If there's an initial amount paid, record it immediately
       if (amountPaid && parseFloat(amountPaid) > 0) {
         await dispatch(makePayment({
-          expense: result.id,
+          expense: result.employee_id,
           amount: parseFloat(amountPaid),
         })).unwrap();
       }
@@ -227,11 +240,11 @@ const ExpenseRecords = () => {
       {/* Summary Card */}
       <div className="stat-card mb-6 sm:mb-8 flex items-center justify-between">
         <div>
-          <p className="text-sm text-muted-foreground mb-1">Total Paid This Month</p>
-          <p className="text-2xl sm:text-3xl font-bold text-foreground">₹{totalPaid.toLocaleString()}</p>
+          <p className="text-2xl sm:text-2xl font-bold text-muted-foreground mb-1">Total Paid This Month</p>
         </div>
-        <div className="p-3 bg-success/10 rounded-lg">
-          <IndianRupee className="w-6 h-6 sm:w-8 sm:h-8 text-success" />
+        <div className="p-3 rounded-lg">
+          {/* <IndianRupee className="w-6 h-6 sm:w-8 sm:h-8 text-success" /> */}
+          <p className="text-2xl sm:text-3xl font-bold text-foreground">₹{totalPaid.toLocaleString()}</p>
         </div>
       </div>
 
@@ -255,6 +268,7 @@ const ExpenseRecords = () => {
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Category</th>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Requested</th>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Paid</th>
+                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Remaining Amount</th>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Created By</th>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Status</th>
               </tr>
@@ -283,11 +297,12 @@ const ExpenseRecords = () => {
                     <td className="py-4 px-6 text-sm text-muted-foreground">{getCategoryName(expense.category)}</td>
                     <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</td>
                     <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</td>
+                    <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.remaining_amount).toLocaleString()}</td>
                     <td className="py-4 px-6 text-sm text-muted-foreground">{expense.created_by?.username || '-'}</td>
                     <td className="py-4 px-6">
                       <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
                         ? 'bg-success/10 text-success'
-                        : expense.status === 'PARTIAL'
+                        : expense.status === 'PARTIAL'||'PARTIALL_PAID'
                           ? 'bg-warning/10 text-warning'
                           : 'bg-destructive/10 text-destructive'
                         }`}>
@@ -399,16 +414,20 @@ const ExpenseRecords = () => {
                     <p className="font-semibold text-xl text-success">₹{parseFloat(selectedExpense.amount_paid).toLocaleString()}</p>
                   </div>
                   <div>
+                    <p className="text-sm text-muted-foreground">Remaining Amount</p>
+                    <p className="font-medium text-foreground">₹{parseFloat(selectedExpense.remaining_amount).toLocaleString()}</p>
+                  </div>
+                  <div>
                     <p className="text-sm text-muted-foreground">Created By</p>
                     <p className="font-medium text-foreground">{selectedExpense.created_by?.username || '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Created At</p>
-                    <p className="font-medium text-foreground">{selectedExpense.created_at}</p>
+                    <p className="font-medium text-foreground">{formatDateIST(selectedExpense.created_at)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Updated At</p>
-                    <p className="font-medium text-foreground">{selectedExpense.updated_at}</p>
+                    <p className="font-medium text-foreground">{formatDateIST(selectedExpense.updated_at)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Status:</span>
@@ -461,7 +480,7 @@ const ExpenseRecords = () => {
                               <p className="text-sm font-medium text-foreground">Payment #{payment.id}</p>
                               <p className="text-xs text-muted-foreground flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
-                                {new Date(payment.paid_at).toLocaleDateString()}
+                                {formatDateIST(payment.paid_at)}
                               </p>
                             </div>
                           </div>
@@ -581,7 +600,7 @@ const ExpenseRecords = () => {
                       label: emp.employee_name || emp.full_name || emp.full_nmae || 'Unknown',
                     }))}
                     showCreateOption={true}
-                    createOptionLabel="+ Create New Employee"
+                    createOptionLabel="Create New Employee"
                     onCreateClick={() => setShowEmployeeForm(true)}
                   />
 
@@ -595,7 +614,7 @@ const ExpenseRecords = () => {
                       label: cat.name,
                     }))}
                     showCreateOption={true}
-                    createOptionLabel="+ Create New Category"
+                    createOptionLabel="Create New Category"
                     onCreateClick={() => setShowCategoryForm(true)}
                   />
 
@@ -613,7 +632,7 @@ const ExpenseRecords = () => {
                     </div>
                   </div>
 
-                  <div>
+                  {/* <div>
                     <label className="block text-sm font-medium text-foreground mb-2">Amount Paid</label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
@@ -625,7 +644,7 @@ const ExpenseRecords = () => {
                         className="input-field pl-8"
                       />
                     </div>
-                  </div>
+                  </div> */}
 
                   <div className="flex gap-3 pt-2">
                     <button onClick={handleAddExpense} className="btn-primary flex-1">

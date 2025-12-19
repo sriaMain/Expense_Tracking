@@ -9,7 +9,7 @@ interface User {
 
 interface AuthState {
   user: User | null;
-  token: string | null;
+  accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -17,7 +17,7 @@ interface AuthState {
 
 const initialState: AuthState = {
   user: JSON.parse(localStorage.getItem('user') || 'null'),
-  token: localStorage.getItem('authToken'),
+  accessToken: localStorage.getItem('authToken'),
   isAuthenticated: !!localStorage.getItem('authToken'),
   isLoading: false,
   error: null,
@@ -35,7 +35,7 @@ const authSlice = createSlice({
       state.isLoading = false;
       state.isAuthenticated = true;
       state.user = action.payload.user;
-      state.token = action.payload.token;
+      state.accessToken = action.payload.token;
       localStorage.setItem('authToken', action.payload.token);
       localStorage.setItem('user', JSON.stringify(action.payload.user));
     },
@@ -45,11 +45,23 @@ const authSlice = createSlice({
     },
     logout: (state) => {
       state.user = null;
-      state.token = null;
+      state.accessToken = null;
       state.isAuthenticated = false;
       state.error = null;
       localStorage.removeItem('authToken');
       localStorage.removeItem('user');
+    },
+    logoutSuccess: (state) => {
+      state.user = null;
+      state.accessToken = null;
+      state.isAuthenticated = false;
+      state.error = null;
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+    },
+    setAccessToken: (state, action: PayloadAction<{ accessToken: string }>) => {
+      state.accessToken = action.payload.accessToken;
+      localStorage.setItem('authToken', action.payload.accessToken);
     },
     clearError: (state) => {
       state.error = null;
@@ -57,5 +69,13 @@ const authSlice = createSlice({
   },
 });
 
-export const { loginStart, loginSuccess, loginFailure, logout, clearError } = authSlice.actions;
+export const {
+  loginStart,
+  loginSuccess,
+  loginFailure,
+  logout,
+  logoutSuccess,
+  setAccessToken,
+  clearError
+} = authSlice.actions;
 export default authSlice.reducer;

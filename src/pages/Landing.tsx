@@ -6,7 +6,7 @@ import {
   FileText, 
   Shield, 
   ArrowRight,
-  DollarSign,
+  IndianRupee,
   Users,
   BarChart3
 } from 'lucide-react';
@@ -43,7 +43,7 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-primary-foreground" />
+              <IndianRupee className="w-6 h-6 text-primary-foreground" />
             </div>
             <span className="text-xl font-semibold text-foreground">ExpenseFlow</span>
           </div>
@@ -116,9 +116,9 @@ const Landing = () => {
               <div className="stat-card">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm text-muted-foreground">Total Expenses</span>
-                  <DollarSign className="w-5 h-5 text-primary" />
+                  <IndianRupee className="w-5 h-5 text-primary" />
                 </div>
-                <p className="text-2xl font-bold text-foreground">$191,600</p>
+                <p className="text-2xl font-bold text-foreground">₹191,600</p>
                 <span className="text-xs text-success">+12.5% from last month</span>
               </div>
               <div className="stat-card">
@@ -134,7 +134,7 @@ const Landing = () => {
                   <span className="text-sm text-muted-foreground">Pending Payouts</span>
                   <TrendingUp className="w-5 h-5 text-warning" />
                 </div>
-                <p className="text-2xl font-bold text-foreground">$12,450</p>
+                <p className="text-2xl font-bold text-foreground">₹12,450</p>
                 <span className="text-xs text-muted-foreground">5 transactions</span>
               </div>
             </div>
@@ -195,7 +195,7 @@ const Landing = () => {
                     {recentTransactions.map((tx, index) => (
                       <tr key={index} className="table-row-hover border-b border-border last:border-0">
                         <td className="py-3 px-4 text-sm text-foreground">{tx.vendor}</td>
-                        <td className="py-3 px-4 text-sm font-medium text-foreground">${tx.amount.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-sm font-medium text-foreground">₹{tx.amount.toLocaleString()}</td>
                         <td className="py-3 px-4 text-sm text-muted-foreground">{tx.date}</td>
                         <td className="py-3 px-4">
                           <span className={`px-2 py-1 text-xs font-medium rounded-full ${

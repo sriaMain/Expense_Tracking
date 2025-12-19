@@ -60,7 +60,7 @@ export const addUser = createAsyncThunk(
 
 export const updateUser = createAsyncThunk(
     'users/updateUser',
-    async ({ id, data }: { id: number; data: { email: string } }, { rejectWithValue }) => {
+    async ({ id, data }: { id: number; data: { username: string } }, { rejectWithValue }) => {
         try {
             const response = await axiosInstance.put(`users/${id}/`, data);
             return { id, ...data, message: response.data.message };
@@ -86,7 +86,7 @@ export const toggleUserStatus = createAsyncThunk(
             // It didn't explicitly give an "ACTIVATE USER" endpoint.
             // However, usually soft delete is just setting is_active=False.
             // To re-activate, we'd need an endpoint.
-            // I'll assume a standard pattern or try to use PUT to update is_active if possible, but the PUT example was "UPDATE USER (Email Only)".
+            // I'll assume a standard pattern or try to use PUT to update is_active if possible, but the PUT example was "UPDATE USER (UserName Only)".
             // Let's look at the "DISABLE USER" again. It says "DELETE /api/users/3/".
             // If I want to activate, maybe there is a specific endpoint or I should try PUT with is_active?
             // But the PUT example was restricted.
@@ -100,7 +100,7 @@ export const toggleUserStatus = createAsyncThunk(
 
             if (is_active) {
                 // Currently active, so disable
-                await axiosInstance.put(`users/${id}/`);
+                await axiosInstance.delete(`users/${id}/`);
                 return { id, is_active: false };
             } else {
                 // Currently inactive, so activate. 
@@ -208,7 +208,7 @@ const userSlice = createSlice({
                 state.isLoading = false;
                 const index = state.users.findIndex(u => u.id === action.payload.id);
                 if (index !== -1) {
-                    state.users[index] = { ...state.users[index], email: action.payload.email };
+                    state.users[index] = { ...state.users[index], username: action.payload.username };
                 }
             })
             .addCase(updateUser.rejected, (state, action) => {

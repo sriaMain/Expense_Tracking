@@ -12,6 +12,7 @@ export interface Expense {
   category: number;
   amount_requested: string;
   amount_paid: string;
+  remaining_amount: string;
   status: 'UNPAID' | 'PAID' | 'PARTIAL';
   created_by?: UserInfo;
   updated_by?: UserInfo | null;
@@ -67,7 +68,7 @@ export const addExpense = createAsyncThunk(
       const response = await axiosInstance.post('expenses/', expenseData);
       return response.data;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to add expense');
+      return rejectWithValue(error.response?.data?.error || 'Failed to add expense');
     }
   }
 );
@@ -79,7 +80,7 @@ export const makePayment = createAsyncThunk(
       const response = await axiosInstance.post('payments/', paymentData);
       return response.data;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to make payment');
+      return rejectWithValue(error.response?.data?.error || 'Failed to make payment');
     }
   }
 );

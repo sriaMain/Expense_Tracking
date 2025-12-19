@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import axiosInstance from '@/lib/axiosInstance';
+import { Expense } from './expenseSlice';
 
 export interface Employee {
     id?: number;  // May be present in list responses
@@ -16,6 +17,7 @@ export interface Employee {
         username: string;
     };
     total_expenses?: number;
+    expenses?: Expense[]; // Raw expenses array for each employee
 }
 
 interface EmployeeState {
@@ -113,7 +115,10 @@ const employeeSlice = createSlice({
                     // Calculate total expenses for this employee
                     const total = expenses.reduce((sum: number, exp: any) => sum + parseFloat(exp.amount_requested || '0'), 0);
                     state.employees[employeeIndex].total_expenses = total;
+                    // Store the raw expenses array for potential use in UI calculations
+                    state.employees[employeeIndex].expenses = expenses;
                 }
+                // No need to return anything; Immer handles mutation
             });
     },
 });

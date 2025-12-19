@@ -62,12 +62,12 @@ const UsersPage = () => {
   };
 
   const handleUpdateUser = async () => {
-    if (!selectedUser || !email) return;
+    if (!selectedUser || !username) return;
 
     try {
       await dispatch(updateUser({
         id: selectedUser.id,
-        data: { email }
+        data: { username }
       })).unwrap();
 
       toast.success('User updated successfully');
@@ -93,6 +93,7 @@ const UsersPage = () => {
   const openEditModal = (user: AppUser) => {
     setSelectedUser(user);
     setEmail(user.email);
+    setUsername(user.username);
     setShowEditModal(true);
     setActiveDropdown(null);
   };
@@ -326,9 +327,21 @@ const UsersPage = () => {
                   </label>
                   <input
                     type="email"
-                    placeholder="Enter email address"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    disabled
+                    className="input-field opacity-60 cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    <User className="w-4 h-4 inline mr-2" />
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter user name"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     className="input-field"
                   />
                 </div>

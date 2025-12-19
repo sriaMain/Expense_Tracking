@@ -96,9 +96,9 @@ const Navbar = () => {
 
   const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/users', icon: Users, label: 'Users' },
     { to: '/expenses', icon: Receipt, label: 'Expenses' },
     { to: '/reports', icon: FileBarChart, label: 'Reports' },
-    { to: '/users', icon: Users, label: 'Users' },
   ];
 
   const NavItems = ({ mobile = false }: { mobile?: boolean }) => (

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAppSelector, useAppDispatch } from '@/hooks/useAppDispatch';
 import { fetchExpenses } from '@/store/slices/expenseSlice';
 import { fetchEmployees, fetchEmployeeExpenses } from '@/store/slices/employeeSlice';
@@ -95,57 +95,98 @@ const Dashboard = () => {
   const monthlyData = getMonthlyData();
 
   // Vendor (Employee) distribution data
-  // Now using the total_expenses fetched from the individual endpoint
+  // Compute total remaining amount per employee from nested expenses if not provided
   const vendorDistribution = employees.map((emp) => {
+    const totalRemaining = (emp.expenses || []).reduce((sum: number, exp) => sum + parseFloat(exp.remaining_amount || '0'), 0);
+    // Use totalRemaining as the displayed value; fallback to 0 if no expenses
     return {
       name: emp.employee_name || emp.full_name || emp.full_nmae || 'Unknown',
-      value: emp.total_expenses || 0,
+      value: totalRemaining,
     };
-  }).filter(v => v.value > 0);
+  }).sort((a, b) => b.value - a.value);
 
   console.log('Vendor Distribution Data:', vendorDistribution);
   console.log('Employees:', employees.map(e => ({ name: e.employee_name || e.full_name, total: e.total_expenses })));
 
   const COLORS = ['hsl(217, 91%, 50%)', 'hsl(142, 71%, 45%)', 'hsl(38, 92%, 50%)', 'hsl(280, 65%, 60%)'];
 
+  // Track previous values for change calculations
+  const prevRef = useRef({
+    totalExpenses: 0,
+    paidExpenses: 0,
+    pendingExpenses: 0,
+    activeCount: 0,
+  });
+
+  // Helper to format change with sign and one decimal
+  const formatChange = (val: number) => {
+    const sign = val >= 0 ? '+' : '';
+    return `${sign}${val.toFixed(1)}%`;
+  };
+
+  // Calculate change percentages safely (avoid division by zero)
+  const totalChange = prevRef.current.totalExpenses === 0
+    ? 0
+    : ((totalExpenses - prevRef.current.totalExpenses) / prevRef.current.totalExpenses) * 100;
+  const paidChange = prevRef.current.paidExpenses === 0
+    ? 0
+    : ((paidExpenses - prevRef.current.paidExpenses) / prevRef.current.paidExpenses) * 100;
+  const pendingChange = prevRef.current.pendingExpenses === 0
+    ? 0
+    : ((pendingExpenses - prevRef.current.pendingExpenses) / prevRef.current.pendingExpenses) * 100;
+  const activeChange = prevRef.current.activeCount === 0
+    ? 0
+    : ((employees.length - prevRef.current.activeCount) / prevRef.current.activeCount) * 100;
+
   const summaryCards = [
     {
       title: 'Total Expenses',
       value: `₹${totalExpenses.toLocaleString()}`,
       icon: IndianRupee,
-      change: '+12.5%',
-      isPositive: true,
+      change: formatChange(totalChange),
+      isPositive: totalChange >= 0,
       bgColor: 'bg-primary/10',
-      iconColor: 'text-primary'
+      iconColor: 'text-primary',
     },
     {
       title: 'Paid Amount',
       value: `₹${paidExpenses.toLocaleString()}`,
       icon: TrendingUp,
-      change: '+8.2%',
-      isPositive: true,
+      change: formatChange(paidChange),
+      isPositive: paidChange >= 0,
       bgColor: 'bg-success/10',
-      iconColor: 'text-success'
+      iconColor: 'text-success',
     },
     {
       title: 'Pending Payouts',
       value: `₹${pendingExpenses.toLocaleString()}`,
       icon: Clock,
-      change: '-3.1%',
-      isPositive: false,
+      // For pending, a decrease is positive (improvement)
+      change: formatChange(pendingChange),
+      isPositive: pendingChange <= 0,
       bgColor: 'bg-warning/10',
-      iconColor: 'text-warning'
+      iconColor: 'text-warning',
     },
     {
       title: 'Active Employees/Vendors',
       value: employees.length.toString(),
       icon: Users,
-      change: '+2',
-      isPositive: true,
+      change: formatChange(activeChange),
+      isPositive: activeChange >= 0,
       bgColor: 'bg-accent',
-      iconColor: 'text-accent-foreground'
+      iconColor: 'text-accent-foreground',
     },
   ];
+
+  // Update previous values after render
+  useEffect(() => {
+    prevRef.current = {
+      totalExpenses,
+      paidExpenses,
+      pendingExpenses,
+      activeCount: employees.length,
+    };
+  }, [totalExpenses, paidExpenses, pendingExpenses, employees.length]);
 
   if (expensesLoading || employeesLoading) {
     return (
@@ -170,11 +211,11 @@ const Dashboard = () => {
               <div className={`p-2 sm:p-2.5 rounded-lg ${card.bgColor}`}>
                 <card.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${card.iconColor}`} />
               </div>
-              <div className={`flex items-center gap-1 text-xs font-medium ${card.isPositive ? 'text-success' : 'text-destructive'
+              {/* <div className={`flex items-center gap-1 text-xs font-medium ${card.isPositive ? 'text-success' : 'text-destructive'
                 }`}>
                 {card.isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                 <span className="hidden sm:inline">{card.change}</span>
-              </div>
+              </div> */}
             </div>
             <p className="text-lg sm:text-2xl font-bold text-foreground">{card.value}</p>
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">{card.title}</p>
@@ -209,8 +250,8 @@ const Dashboard = () => {
         {/* Vendor Distribution */}
         <div className="card-elevated p-4 sm:p-6">
           <h2 className="section-title">Employee/Vendor Distribution</h2>
-          <div className="flex flex-col sm:flex-row items-center">
-            <ResponsiveContainer width="100%" height={250} className="sm:!w-1/2">
+          <div className="flex flex-col items-center">
+            <ResponsiveContainer width="100%" height={250}>
               {vendorDistribution.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-sm text-muted-foreground">No employee expense data available</p>
@@ -252,23 +293,6 @@ const Dashboard = () => {
                 </LineChart>
               )}
             </ResponsiveContainer>
-            <div className="w-full sm:w-1/2 space-y-2 sm:space-y-3 mt-4 sm:mt-0 pl-0 sm:pl-4">
-              {vendorDistribution.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center">No data available</p>
-              ) : (
-                vendorDistribution.map((vendor, index) => (
-                  <div key={index} className="flex items-center gap-3">
-                    <div
-                      className="w-3 h-3 rounded-full flex-shrink-0 bg-primary"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground truncate">{vendor.name}</p>
-                      <p className="text-xs text-muted-foreground">₹{vendor.value.toLocaleString()}</p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
           </div>
         </div>
       </div>

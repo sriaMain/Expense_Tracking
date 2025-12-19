@@ -11,7 +11,7 @@ const Reports = () => {
   const { expenses, isLoading: expensesLoading } = useAppSelector((state) => state.expense);
   const { employees, isLoading: employeesLoading } = useAppSelector((state) => state.employee);
 
-  const [dateRange, setDateRange] = useState<'monthly' | 'custom'>('monthly');
+  const [dateRange, setDateRange] = useState<'monthly' | 'custom' | 'today'>('monthly');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -36,9 +36,9 @@ const Reports = () => {
       });
     } else if (startDate && endDate) {
       return expenses.filter(exp => {
-        const date = exp.created_at || exp.updated_at || '';
-        // Simple string comparison for ISO dates works for YYYY-MM-DD
-        return date >= startDate && date <= endDate;
+        const fullDate = exp.created_at || exp.updated_at || '';
+        const dateOnly = fullDate.split('T')[0];
+        return dateOnly >= startDate && dateOnly <= endDate;
       });
     }
     return expenses;
@@ -154,6 +154,20 @@ const Reports = () => {
         <div className="flex flex-wrap gap-3 sm:gap-4">
           <div className="flex gap-2">
             <button
+              onClick={() => {
+                setDateRange('today');
+                const today = new Date().toISOString().split('T')[0];
+                setStartDate(today);
+                setEndDate(today);
+              }}
+              className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-lg transition-colors ${dateRange === 'today'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+            >
+              Today
+            </button>
+            <button
               onClick={() => setDateRange('monthly')}
               className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-lg transition-colors ${dateRange === 'monthly'
                 ? 'bg-primary text-primary-foreground'
@@ -188,6 +202,7 @@ const Reports = () => {
                 onChange={(e) => setStartDate(e.target.value)}
                 className="input-field w-full sm:w-auto"
                 placeholder="Start Date"
+                disabled={dateRange === 'today'}
               />
               <span className="text-muted-foreground hidden sm:block">to</span>
               <input
@@ -196,6 +211,7 @@ const Reports = () => {
                 onChange={(e) => setEndDate(e.target.value)}
                 className="input-field w-full sm:w-auto"
                 placeholder="End Date"
+                disabled={dateRange === 'today'}
               />
             </div>
           )}
@@ -218,35 +234,6 @@ const Reports = () => {
           <p className="text-sm text-muted-foreground mb-2">Pending Amount</p>
           <p className="text-xl sm:text-2xl font-bold text-warning">₹{pendingAmount.toLocaleString()}</p>
           <p className="text-xs text-muted-foreground mt-1">{filteredExpenses.filter(e => e.status !== 'PAID').length} pending/partial</p>
-        </div>
-      </div>
-
-      {/* Vendor Summary */}
-      <div className="card-elevated p-4 sm:p-6 mb-6 sm:mb-8">
-        <h2 className="section-title">Employee/Vendor Summary</h2>
-        <div className="space-y-3 sm:space-y-4">
-          {vendorSummary.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No data for selected period</p>
-          ) : (
-            vendorSummary.map((vendor) => (
-              <div key={vendor.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 bg-muted/50 rounded-lg gap-2">
-                <div>
-                  <p className="font-medium text-foreground">{vendor.name}</p>
-                  <p className="text-sm text-muted-foreground">{vendor.count} transactions</p>
-                </div>
-                <div className="flex gap-4 sm:text-right">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Total</p>
-                    <p className="font-semibold text-foreground">₹{vendor.total.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Paid</p>
-                    <p className="font-semibold text-success">₹{vendor.paid.toLocaleString()}</p>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
         </div>
       </div>
 

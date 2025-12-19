@@ -54,7 +54,7 @@ const Login = () => {
       toast.success('Welcome back!');
       navigate('/dashboard');
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || 'Authentication failed. Please try again.';
+      const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Authentication failed. Please try again.';
       dispatch(loginFailure(errorMessage));
       toast.error(errorMessage);
     }
