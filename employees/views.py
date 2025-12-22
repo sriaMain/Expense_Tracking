@@ -172,6 +172,104 @@ class UserListCreateAPIView(APIView):
         )
 
 
+# class UserDetailAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request, pk):
+#         user = get_object_or_404(User, pk=pk)
+#         return Response({
+#             "id": user.id,
+#             "username": user.username,
+#             "email": user.email,
+#             "is_active": user.is_active,
+#             "is_staff": user.is_staff,
+#         })
+
+#     def put(self, request, pk):
+#         if not request.user.is_superuser:
+#             return Response(
+#                 {"error": "Only superadmin can update users"},
+#                 status=status.HTTP_403_FORBIDDEN
+#             )
+
+#         user = get_object_or_404(User, pk=pk)
+
+#         if user.id == request.user.id:
+#             return Response(
+#                 {"error": "Cannot update yourself"},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         username = request.data.get("username")
+#         password = request.data.get("password")
+#         is_active = request.data.get("is_active")
+
+#         updated = False
+
+#         if username:
+#             if User.objects.filter(username=username).exclude(pk=user.pk).exists():
+#                 return Response(
+#                     {"error": "Username already exists"},
+#                     status=status.HTTP_400_BAD_REQUEST
+#                 )
+#             user.username = username
+#             updated = True
+
+#         if password:
+#             try:
+#                 validate_password(password, user)
+#             except Exception as e:
+#                 return Response(
+#                     {"error": list(e.messages)},
+#                     status=status.HTTP_400_BAD_REQUEST
+#                 )
+#             user.set_password(password)
+#             updated = True
+
+#         if is_active is not None:
+#             user.is_active = bool(is_active)
+#             updated = True
+
+#         if not updated:
+#             return Response(
+#                 {"message": "No changes detected"},
+#                 status=status.HTTP_200_OK
+#             )
+
+#         user.save()
+#         return Response(
+#             {"message": "User updated successfully"},
+#             status=status.HTTP_200_OK
+#         )
+
+#     def delete(self, request, pk):
+#         if not request.user.is_superuser:
+#             return Response(
+#                 {"error": "Only superadmin can delete or disable users"},
+#                 status=status.HTTP_403_FORBIDDEN
+#             )
+
+#         user = get_object_or_404(User, pk=pk)
+
+#         if user.id == request.user.id:
+#             return Response(
+#                 {"error": "Cannot delete or disable yourself"},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         if user.is_superuser:
+#             return Response(
+#                 {"error": "Cannot delete or disable superadmin users"},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         user.is_active = False
+#         user.save(update_fields=["is_active"])
+
+#         return Response(
+#             {"message": "User account disabled successfully"},
+#             status=status.HTTP_200_OK
+#         )
 class UserDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -200,9 +298,52 @@ class UserDetailAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        action = request.data.get("action")
+
+        if action == "activate":
+            if user.is_superuser:
+                return Response(
+                    {"error": "Cannot activate superadmin users"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if user.is_active:
+                return Response(
+                    {"message": "User already active"},
+                    status=status.HTTP_200_OK
+                )
+
+            user.is_active = True
+            user.save(update_fields=["is_active"])
+
+            return Response(
+                {"message": "User activated successfully"},
+                status=status.HTTP_200_OK
+            )
+
+        if action == "deactivate":
+            if user.is_superuser:
+                return Response(
+                    {"error": "Cannot deactivate superadmin users"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if not user.is_active:
+                return Response(
+                    {"message": "User already inactive"},
+                    status=status.HTTP_200_OK
+                )
+
+            user.is_active = False
+            user.save(update_fields=["is_active"])
+
+            return Response(
+                {"message": "User deactivated successfully"},
+                status=status.HTTP_200_OK
+            )
+
         username = request.data.get("username")
         password = request.data.get("password")
-        is_active = request.data.get("is_active")
 
         updated = False
 
@@ -224,10 +365,6 @@ class UserDetailAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             user.set_password(password)
-            updated = True
-
-        if is_active is not None:
-            user.is_active = bool(is_active)
             updated = True
 
         if not updated:
@@ -261,6 +398,12 @@ class UserDetailAPIView(APIView):
             return Response(
                 {"error": "Cannot delete or disable superadmin users"},
                 status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not user.is_active:
+            return Response(
+                {"message": "User already inactive"},
+                status=status.HTTP_200_OK
             )
 
         user.is_active = False
