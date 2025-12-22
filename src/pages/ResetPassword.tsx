@@ -1,14 +1,12 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { IndianRupee, CheckCircle2 } from 'lucide-react';
-
 import axiosInstance from '@/lib/axiosInstance';
-import { useLocation } from 'react-router-dom';
 
 const ResetPassword = () => {
     const navigate = useNavigate();
@@ -56,7 +54,13 @@ const ResetPassword = () => {
                 navigate('/login');
             }, 2000);
         } catch (error: any) {
-            const errorMessage = error.response?.data?.detail || error.response?.data?.message || 'Failed to reset password. Please try again.';
+
+            const data = error.response?.data;
+            const errorMessage =
+                (Array.isArray(data?.error) ? data.error[0] : data?.error) ||
+                data?.message ||
+                data?.detail ||
+                'Failed to reset password. Please try again.';
             toast.error(errorMessage);
         } finally {
             setIsLoading(false);

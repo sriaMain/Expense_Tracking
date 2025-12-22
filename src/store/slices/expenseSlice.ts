@@ -56,7 +56,8 @@ export const fetchExpenses = createAsyncThunk(
       const response = await axiosInstance.get('expenses/');
       return response.data;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to fetch expenses');
+      const data = error.response?.data;
+      return rejectWithValue(data?.detail || data?.error || 'Failed to fetch expenses');
     }
   }
 );
@@ -68,7 +69,13 @@ export const addExpense = createAsyncThunk(
       const response = await axiosInstance.post('expenses/', expenseData);
       return response.data;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.error || 'Failed to add expense');
+      const data = error.response?.data;
+      return rejectWithValue(
+        (Array.isArray(data?.error) ? data.error[0] : data?.error) ||
+        data?.message ||
+        data?.detail ||
+        'Failed to add expense'
+      );
     }
   }
 );
@@ -80,7 +87,13 @@ export const makePayment = createAsyncThunk(
       const response = await axiosInstance.post('payments/', paymentData);
       return response.data;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.error || 'Failed to make payment');
+      const data = error.response?.data;
+      return rejectWithValue(
+        (Array.isArray(data?.amount) ? data.amount[0] : data?.amount) ||
+        data?.error ||
+        data?.detail ||
+        'Failed to make payment'
+      );
     }
   }
 );
@@ -95,7 +108,8 @@ export const fetchPayments = createAsyncThunk(
       const response = await axiosInstance.get(`employees/${expenseId}/payments/`);
       return response.data;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to fetch payments');
+      const data = error.response?.data;
+      return rejectWithValue(data?.detail || data?.error || 'Failed to fetch payments');
     }
   }
 );

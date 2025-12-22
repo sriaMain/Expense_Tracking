@@ -211,10 +211,12 @@ const ExpenseRecords = () => {
   };
 
   // Filter expenses by month (assuming date is created_at or updated_at)
-  const filteredExpenses = expenses.filter(exp => {
-    const date = exp.created_at || exp.updated_at || '';
-    return date.startsWith(selectedMonth);
-  });
+  const filteredExpenses = expenses
+    .filter(exp => {
+      const date = exp.created_at || exp.updated_at || '';
+      return date.startsWith(selectedMonth);
+    })
+    .sort((a, b) => b.id - a.id);
 
   const totalPaid = filteredExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_paid), 0);
   const selectedExpense = expenses.find(e => e.id === selectedExpenseId);
@@ -302,7 +304,7 @@ const ExpenseRecords = () => {
                     <td className="py-4 px-6">
                       <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
                         ? 'bg-success/10 text-success'
-                        : expense.status === 'PARTIAL'||'PARTIALL_PAID'
+                        : expense.status === 'PARTIAL' || 'PARTIALL_PAID'
                           ? 'bg-warning/10 text-warning'
                           : 'bg-destructive/10 text-destructive'
                         }`}>
