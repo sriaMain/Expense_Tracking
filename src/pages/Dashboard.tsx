@@ -266,6 +266,7 @@ const Dashboard = () => {
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Employee/Vendor</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Requested</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Paid</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Remaining Amount</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Status</th>
               </tr>
             </thead>
@@ -280,6 +281,7 @@ const Dashboard = () => {
                     <td className="py-4 px-4 text-sm font-medium text-foreground">{getEmployeeName(expense.employee)}</td>
                     <td className="py-4 px-4 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</td>
                     <td className="py-4 px-4 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</td>
+                    <td className="py-4 px-4 text-sm font-semibold text-foreground">₹{parseFloat(expense.remaining_amount).toLocaleString()}</td>
                     <td className="py-4 px-4">
                       <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
                         ? 'bg-success/10 text-success'
@@ -326,6 +328,10 @@ const Dashboard = () => {
                 <div>
                   <p className="text-muted-foreground">Paid</p>
                   <p className="font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Remaining</p>
+                  <p className="font-semibold text-foreground">₹{parseFloat(expense.remaining_amount).toLocaleString()}</p>
                 </div>
               </div>
             </div>

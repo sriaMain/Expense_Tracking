@@ -14,8 +14,10 @@ const ExpenseRecords = () => {
   const { employees, isLoading: employeesLoading } = useAppSelector((state) => state.employee);
   const { categories, isLoading: categoriesLoading } = useAppSelector((state) => state.category);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [showIncomeModal, setShowIncomeModal] = useState(false);
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [activeTab, setActiveTab] = useState<'expenses' | 'income'>('expenses');
 
   // Expense Form states
   const [selectedEmployee, setSelectedEmployee] = useState('');
@@ -230,13 +232,22 @@ const ExpenseRecords = () => {
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">Expense Records</h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">Manage and track all expense transactions</p>
         </div>
-        <button
-          onClick={() => setShowExpenseModal(true)}
-          className="btn-primary w-full sm:w-auto"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Expense
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowExpenseModal(true)}
+            className="btn-primary w-full sm:w-auto"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Expense
+          </button>
+          <button
+            onClick={() => setShowIncomeModal(true)}
+            className="btn-primary w-full sm:w-auto"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Income
+          </button>
+        </div>
       </div>
 
       {/* Summary Card */}
@@ -250,124 +261,182 @@ const ExpenseRecords = () => {
         </div>
       </div>
 
-      {/* Month Filter */}
-      <div className="mb-4 sm:mb-6">
+      {/* Month Filter and Tabs */}
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <input
           type="month"
           value={selectedMonth}
           onChange={(e) => dispatch({ type: 'expense/setSelectedMonth', payload: e.target.value })}
           className="input-field w-full sm:w-auto"
         />
-      </div>
 
-      {/* Transactions Table - Desktop */}
-      <div className="card-elevated overflow-hidden hidden md:block">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-muted">
-              <tr>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Employee/Vendor</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Category</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Requested</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Paid</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Remaining Amount</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Created By</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {expensesLoading ? (
-                <tr>
-                  <td colSpan={5} className="py-12 text-center">
-                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-                  </td>
-                </tr>
-              ) : filteredExpenses.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-12 text-center text-muted-foreground">
-                    No expense records found for this month
-                  </td>
-                </tr>
-              ) : (
-                filteredExpenses.map((expense) => (
-                  <tr
-                    key={expense.id}
-                    onClick={() => handleRowClick(expense.id)}
-                    className="table-row-hover border-b border-border last:border-0 cursor-pointer"
-                  >
-                    <td className="py-4 px-6 text-sm font-medium text-foreground">{getEmployeeName(expense.employee)}</td>
-                    <td className="py-4 px-6 text-sm text-muted-foreground">{getCategoryName(expense.category)}</td>
-                    <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</td>
-                    <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</td>
-                    <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.remaining_amount).toLocaleString()}</td>
-                    <td className="py-4 px-6 text-sm text-muted-foreground">{expense.created_by?.username || '-'}</td>
-                    <td className="py-4 px-6">
-                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
-                        ? 'bg-success/10 text-success'
-                        : expense.status === 'PARTIAL' || 'PARTIALL_PAID'
-                          ? 'bg-warning/10 text-warning'
-                          : 'bg-destructive/10 text-destructive'
-                        }`}>
-                        {expense.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        {/* Tabs for Expenses and Income */}
+        <div className="flex gap-2 bg-muted p-1 rounded-lg">
+          <button
+            onClick={() => setActiveTab('expenses')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'expenses'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+              }`}
+          >
+            Expenses
+          </button>
+          <button
+            onClick={() => setActiveTab('income')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'income'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+              }`}
+          >
+            Income
+          </button>
         </div>
       </div>
 
+
+      {/* Transactions Table - Desktop */}
+      {activeTab === 'expenses' ? (
+        <div className="card-elevated overflow-hidden hidden md:block">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Employee/Vendor</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Category</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Requested</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Paid</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Remaining Amount</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Created By</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expensesLoading ? (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+                    </td>
+                  </tr>
+                ) : filteredExpenses.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                      No expense records found for this month
+                    </td>
+                  </tr>
+                ) : (
+                  filteredExpenses.map((expense) => (
+                    <tr
+                      key={expense.id}
+                      onClick={() => handleRowClick(expense.id)}
+                      className="table-row-hover border-b border-border last:border-0 cursor-pointer"
+                    >
+                      <td className="py-4 px-6 text-sm font-medium text-foreground">{getEmployeeName(expense.employee)}</td>
+                      <td className="py-4 px-6 text-sm text-muted-foreground">{getCategoryName(expense.category)}</td>
+                      <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</td>
+                      <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</td>
+                      <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.remaining_amount).toLocaleString()}</td>
+                      <td className="py-4 px-6 text-sm text-muted-foreground">{expense.created_by?.username || '-'}</td>
+                      <td className="py-4 px-6">
+                        <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
+                          ? 'bg-success/10 text-success'
+                          : expense.status === 'PARTIAL' || 'PARTIALL_PAID'
+                            ? 'bg-warning/10 text-warning'
+                            : 'bg-destructive/10 text-destructive'
+                          }`}>
+                          {expense.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* Income Table - Desktop */
+        <div className="card-elevated overflow-hidden hidden md:block">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Source</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Category</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Amount</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Date</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Created By</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                    No income records found for this month
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Transactions Cards - Mobile */}
-      <div className="md:hidden space-y-3">
-        {expensesLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
-        ) : filteredExpenses.length === 0 ? (
-          <div className="card-elevated p-8 text-center text-muted-foreground">
-            No expense records found for this month
-          </div>
-        ) : (
-          filteredExpenses.map((expense) => (
-            <div
-              key={expense.id}
-              onClick={() => handleRowClick(expense.id)}
-              className="card-elevated p-4 cursor-pointer active:scale-[0.98] transition-transform"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p className="font-medium text-foreground">{getEmployeeName(expense.employee)}</p>
-                  <p className="text-sm text-muted-foreground">{getCategoryName(expense.category)}</p>
-                </div>
-                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
-                  ? 'bg-success/10 text-success'
-                  : expense.status === 'PARTIAL'
-                    ? 'bg-warning/10 text-warning'
-                    : 'bg-destructive/10 text-destructive'
-                  }`}>
-                  {expense.status}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Requested</p>
-                  <p className="font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Paid</p>
-                  <p className="font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Created By</p>
-                  <p className="font-semibold text-foreground">{expense.created_by.username}</p>
-                </div>
-              </div>
+      {activeTab === 'expenses' ? (
+        <div className="md:hidden space-y-3">
+          {expensesLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
-          ))
-        )}
-      </div>
+          ) : filteredExpenses.length === 0 ? (
+            <div className="card-elevated p-8 text-center text-muted-foreground">
+              No expense records found for this month
+            </div>
+          ) : (
+            filteredExpenses.map((expense) => (
+              <div
+                key={expense.id}
+                onClick={() => handleRowClick(expense.id)}
+                className="card-elevated p-4 cursor-pointer active:scale-[0.98] transition-transform"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="font-medium text-foreground">{getEmployeeName(expense.employee)}</p>
+                    <p className="text-sm text-muted-foreground">{getCategoryName(expense.category)}</p>
+                  </div>
+                  <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
+                    ? 'bg-success/10 text-success'
+                    : expense.status === 'PARTIAL'
+                      ? 'bg-warning/10 text-warning'
+                      : 'bg-destructive/10 text-destructive'
+                    }`}>
+                    {expense.status}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Requested</p>
+                    <p className="font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Paid</p>
+                    <p className="font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Created By</p>
+                    <p className="font-semibold text-foreground">{expense.created_by?.username || '-'}</p>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        /* Income Cards - Mobile */
+        <div className="md:hidden space-y-3">
+          <div className="card-elevated p-8 text-center text-muted-foreground">
+            No income records found for this month
+          </div>
+        </div>
+      )}
 
       {/* Expense Details Modal */}
       <AnimatePresence>
