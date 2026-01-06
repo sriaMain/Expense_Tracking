@@ -1,58 +1,57 @@
 import random
 from datetime import datetime
+
+from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
-from django.shortcuts import get_object_or_404
+from django.contrib.auth.password_validation import validate_password
+from django.core.mail import send_mail
+from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
 from django.db import transaction
 from django.db.models import F
 from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.db.models import Sum
+from .services import generate_recurring_expenses
+
 from openpyxl import Workbook
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.exceptions import TokenError
-import logging
-from django.contrib.auth.models import User
-from django.contrib.auth.password_validation import validate_password
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
-from rest_framework import status
-from django.core.signing import Signer, BadSignature, SignatureExpired
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph 
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from django.core.signing import TimestampSigner 
-signer = TimestampSigner()
-
-from .models import PasswordResetOTP
-
-logger = logging.getLogger(__name__)
-
-
-from rest_framework import status
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
+from django.contrib.auth.models import User
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from django.core.mail import send_mail
-from django.conf import settings
-from .models import PasswordResetOTP
-from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth.password_validation import validate_password
-from .models import Employee, ExpenseCategory, Expense, Payment
+from .models import RecurringExpense
+from .serializers import RecurringExpenseSerializer
+
+from .models import (
+    Vendor,
+    VendorBankDetails,
+    ExpenseCategory,
+    Expense,
+    Payment,
+    Project,
+    PasswordResetOTP,
+)
+
 from .serializers import (
-    EmployeeSerializer,
+    VendorSerializer,
+    VendorBankDetailsSerializer,
     ExpenseCategorySerializer,
     ExpenseSerializer,
     PaymentSerializer,
     PaymentMiniSerializer,
+    ProjectSerializer,
 )
+
+from .services import carry_forward_monthly_expenses
+
+signer = TimestampSigner()
 
 
 class LoginAPIView(APIView):
@@ -63,425 +62,53 @@ class LoginAPIView(APIView):
         identifier = request.data.get("identifier")
         password = request.data.get("password")
 
-        if not identifier or not password:
-            return Response(
-                {"error": "Username/Email and password are required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         try:
-            user_obj = User.objects.get(username=identifier)
+            user = User.objects.get(username=identifier)
         except User.DoesNotExist:
             try:
-                user_obj = User.objects.get(email=identifier)
+                user = User.objects.get(email=identifier)
             except User.DoesNotExist:
-                return Response(
-                    {"error": "Invalid username or email"},
-                    status=status.HTTP_401_UNAUTHORIZED
-                )
+                return Response({"error": "Invalid credentials"}, status=401)
 
-        user = authenticate(
-            request,
-            username=user_obj.username,
-            password=password
-        )
-
-        if user is None:
-            return Response(
-                {"error": "Invalid password"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-
-        if not user.is_active:
-            return Response(
-                {"error": "Account is disabled. Contact administrator"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        if not user.is_staff:
-            return Response(
-                {"error": "Access denied"},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        user = authenticate(request, username=user.username, password=password)
+        if not user:
+            return Response({"error": "Invalid credentials"}, status=401)
 
         refresh = RefreshToken.for_user(user)
-
-        return Response(
-            {
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
-                "user": {
-                    "id": user.id,
-                    "username": user.username,
-                    "email": user.email,
-                    "is_staff": user.is_staff,
-                },
-            },
-            status=status.HTTP_200_OK
-        )
-
-class UserListCreateAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        users = User.objects.filter(is_staff=True)
-        data = []
-        for u in users:
-            data.append(
-                {
-                    "id": u.id,
-                    "username": u.username,
-                    "email": u.email,
-                    "is_active": u.is_active,
-                    "created_by": u.last_name or "system",
-                }
-            )
-        return Response(data)
-
-    def post(self, request):
-        if not request.user.is_staff:
-            return Response({"error": "Forbidden"}, status=403)
-
-        username = request.data.get("username")
-        email = request.data.get("email")
-        password = request.data.get("password")
-
-        if not username or not password:
-            return Response({"error": "username and password required"}, status=400)
-
-        if User.objects.filter(username=username).exists():
-            return Response({"error": "Username already exists"}, status=400)
-
-        user = User.objects.create_user(
-            username=username,
-            email=email,
-            password=password,
-            is_staff=True,
-            is_active=True,
-        )
-        user.last_name = request.user.username
-        user.save()
-
-        return Response(
-            {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-            },
-            status=201,
-        )
-
-
-# class UserDetailAPIView(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request, pk):
-#         user = get_object_or_404(User, pk=pk)
-#         return Response({
-#             "id": user.id,
-#             "username": user.username,
-#             "email": user.email,
-#             "is_active": user.is_active,
-#             "is_staff": user.is_staff,
-#         })
-
-#     def put(self, request, pk):
-#         if not request.user.is_superuser:
-#             return Response(
-#                 {"error": "Only superadmin can update users"},
-#                 status=status.HTTP_403_FORBIDDEN
-#             )
-
-#         user = get_object_or_404(User, pk=pk)
-
-#         if user.id == request.user.id:
-#             return Response(
-#                 {"error": "Cannot update yourself"},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-
-#         username = request.data.get("username")
-#         password = request.data.get("password")
-#         is_active = request.data.get("is_active")
-
-#         updated = False
-
-#         if username:
-#             if User.objects.filter(username=username).exclude(pk=user.pk).exists():
-#                 return Response(
-#                     {"error": "Username already exists"},
-#                     status=status.HTTP_400_BAD_REQUEST
-#                 )
-#             user.username = username
-#             updated = True
-
-#         if password:
-#             try:
-#                 validate_password(password, user)
-#             except Exception as e:
-#                 return Response(
-#                     {"error": list(e.messages)},
-#                     status=status.HTTP_400_BAD_REQUEST
-#                 )
-#             user.set_password(password)
-#             updated = True
-
-#         if is_active is not None:
-#             user.is_active = bool(is_active)
-#             updated = True
-
-#         if not updated:
-#             return Response(
-#                 {"message": "No changes detected"},
-#                 status=status.HTTP_200_OK
-#             )
-
-#         user.save()
-#         return Response(
-#             {"message": "User updated successfully"},
-#             status=status.HTTP_200_OK
-#         )
-
-#     def delete(self, request, pk):
-#         if not request.user.is_superuser:
-#             return Response(
-#                 {"error": "Only superadmin can delete or disable users"},
-#                 status=status.HTTP_403_FORBIDDEN
-#             )
-
-#         user = get_object_or_404(User, pk=pk)
-
-#         if user.id == request.user.id:
-#             return Response(
-#                 {"error": "Cannot delete or disable yourself"},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-
-#         if user.is_superuser:
-#             return Response(
-#                 {"error": "Cannot delete or disable superadmin users"},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-
-#         user.is_active = False
-#         user.save(update_fields=["is_active"])
-
-#         return Response(
-#             {"message": "User account disabled successfully"},
-#             status=status.HTTP_200_OK
-#         )
-class UserDetailAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, pk):
-        user = get_object_or_404(User, pk=pk)
         return Response({
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "is_active": user.is_active,
-            "is_staff": user.is_staff,
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
         })
 
-    def put(self, request, pk):
-        if not request.user.is_superuser:
-            return Response(
-                {"error": "Only superadmin can update users"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        user = get_object_or_404(User, pk=pk)
-
-        if user.id == request.user.id:
-            return Response(
-                {"error": "Cannot update yourself"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        action = request.data.get("action")
-
-        if action == "activate":
-            if user.is_superuser:
-                return Response(
-                    {"error": "Cannot activate superadmin users"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            if user.is_active:
-                return Response(
-                    {"message": "User already active"},
-                    status=status.HTTP_200_OK
-                )
-
-            user.is_active = True
-            user.save(update_fields=["is_active"])
-
-            return Response(
-                {"message": "User activated successfully"},
-                status=status.HTTP_200_OK
-            )
-
-        if action == "deactivate":
-            if user.is_superuser:
-                return Response(
-                    {"error": "Cannot deactivate superadmin users"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            if not user.is_active:
-                return Response(
-                    {"message": "User already inactive"},
-                    status=status.HTTP_200_OK
-                )
-
-            user.is_active = False
-            user.save(update_fields=["is_active"])
-
-            return Response(
-                {"message": "User deactivated successfully"},
-                status=status.HTTP_200_OK
-            )
-
-        username = request.data.get("username")
-        password = request.data.get("password")
-
-        updated = False
-
-        if username:
-            if User.objects.filter(username=username).exclude(pk=user.pk).exists():
-                return Response(
-                    {"error": "Username already exists"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            user.username = username
-            updated = True
-
-        if password:
-            try:
-                validate_password(password, user)
-            except Exception as e:
-                return Response(
-                    {"error": list(e.messages)},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            user.set_password(password)
-            updated = True
-
-        if not updated:
-            return Response(
-                {"message": "No changes detected"},
-                status=status.HTTP_200_OK
-            )
-
-        user.save()
-        return Response(
-            {"message": "User updated successfully"},
-            status=status.HTTP_200_OK
-        )
-
-    def delete(self, request, pk):
-        if not request.user.is_superuser:
-            return Response(
-                {"error": "Only superadmin can delete or disable users"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        user = get_object_or_404(User, pk=pk)
-
-        if user.id == request.user.id:
-            return Response(
-                {"error": "Cannot delete or disable yourself"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if user.is_superuser:
-            return Response(
-                {"error": "Cannot delete or disable superadmin users"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if not user.is_active:
-            return Response(
-                {"message": "User already inactive"},
-                status=status.HTTP_200_OK
-            )
-
-        user.is_active = False
-        user.save(update_fields=["is_active"])
-
-        return Response(
-            {"message": "User account disabled successfully"},
-            status=status.HTTP_200_OK
-        )
 
 class LogoutAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        return Response(
-            {"message": "Logout successful"},
-            status=status.HTTP_200_OK
-        )
-        
-        
+        token = request.data.get("refresh")
+        RefreshToken(token).blacklist()
+        return Response({"message": "Logged out successfully"})
+
+
 class ForgotPasswordAPIView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
         email = request.data.get("email")
+        user = get_object_or_404(User, email=email, is_active=True)
 
-        logger.info(f"Forgot password requested for email: {email}")
-
-        if not email:
-            logger.warning("Email missing in forgot-password request")
-            return Response(
-                {"error": "email is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            user = User.objects.get(email__iexact=email, is_active=True)
-            logger.info(f"User found for email: {email}, user_id={user.id}")
-
-        except User.DoesNotExist:
-            logger.warning(f"No active user found for email: {email}")
-
-            return Response(
-                {"message": "If the email exists, OTP has been sent"},
-                status=status.HTTP_200_OK
-            )
-
-        except User.MultipleObjectsReturned:
-            logger.error(f"Multiple users found for email: {email}")
-            user = User.objects.filter(email__iexact=email, is_active=True).first()
-
-        otp = f"{random.randint(100000, 999999)}"
-        logger.debug(f"Generated OTP for user_id={user.id}: {otp}")
-
-        PasswordResetOTP.objects.create(
-            user=user,
-            otp=otp
-        )
+        otp = str(random.randint(100000, 999999))
+        PasswordResetOTP.objects.filter(user=user).delete()
+        PasswordResetOTP.objects.create(user=user, otp=otp)
 
         send_mail(
-            subject="Password Reset OTP",
-            message=(
-                f"Hello {user.username},\n\n"
-                f"Your OTP is {otp}. It is valid for 10 minutes.\n\n"
-                f"If you did not request this, please ignore this email."
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email],
-            fail_silently=False,
+            "Password Reset OTP",
+            f"Your OTP is {otp}",
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
         )
-
-        logger.info(f"OTP sent successfully to email: {email}")
-
-        return Response(
-            {"message": "OTP sent to email"},
-            status=status.HTTP_200_OK
-        )
+        return Response({"message": "OTP sent"})
 
 
 class VerifyOTPAPIView(APIView):
@@ -492,161 +119,232 @@ class VerifyOTPAPIView(APIView):
         email = request.data.get("email")
         otp = request.data.get("otp")
 
-        if not email or not otp:
-            return Response(
-                {"error": "email and otp are required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            user = User.objects.get(email__iexact=email, is_active=True)
-            otp_obj = PasswordResetOTP.objects.filter(
-                user=user,
-                otp=otp,
-                is_verified=False
-            ).latest("created_at")
-        except PasswordResetOTP.DoesNotExist:
-            return Response({"error": "Invalid OTP"}, status=400)
+        user = get_object_or_404(User, email=email, is_active=True)
+        otp_obj = get_object_or_404(
+            PasswordResetOTP, user=user, otp=otp, is_verified=False
+        )
 
         if otp_obj.is_expired():
+            otp_obj.delete()
             return Response({"error": "OTP expired"}, status=400)
 
         otp_obj.is_verified = True
-        otp_obj.save(update_fields=["is_verified"])
+        otp_obj.save()
 
-        reset_token = signer.sign(user.pk)
+        return Response({
+            "reset_token": signer.sign(user.id)
+        })
 
-        return Response(
-            {
-                "message": "OTP verified",
-                "reset_token": reset_token
-            },
-            status=200
-        )
-        
-     
+
 class ResetPasswordAPIView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
-        reset_token = request.data.get("reset_token")
+        token = request.data.get("reset_token")
         new_password = request.data.get("new_password")
         confirm_password = request.data.get("confirm_password")
-
-        if not reset_token or not new_password or not confirm_password:
-            return Response(
-                {"error": "reset_token, new_password, confirm_password required"},
-                status=400
-            )
 
         if new_password != confirm_password:
             return Response({"error": "Passwords do not match"}, status=400)
 
         try:
-            user_id = signer.unsign(reset_token, max_age=600)
-            user = User.objects.get(pk=user_id, is_active=True)
-        except SignatureExpired:
-            return Response({"error": "Reset token expired"}, status=400)
-        except BadSignature:
-            return Response({"error": "Invalid reset token"}, status=400)
-        except User.DoesNotExist:
-            return Response({"error": "Invalid user"}, status=400)
+            user_id = signer.unsign(token, max_age=600)
+            user = User.objects.get(pk=user_id)
+        except (BadSignature, SignatureExpired, User.DoesNotExist):
+            return Response({"error": "Invalid token"}, status=400)
 
-        try:
-            validate_password(new_password, user)
-        except Exception as e:
-            return Response({"error": list(e.messages)}, status=400)
-
+        validate_password(new_password, user)
         user.set_password(new_password)
-        user.save(update_fields=["password"])
-
+        user.save()
         PasswordResetOTP.objects.filter(user=user).delete()
 
-        return Response(
-            {"message": "Password reset successful"},
-            status=200
-        )
+        return Response({"message": "Password reset successful"})
 
 
 class ChangePasswordAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        old_password = request.data.get("old_password")
-        new_password = request.data.get("new_password")
-
-        if not old_password or not new_password:
-            return Response(
-                {"error": "old_password and new_password required"},
-                status=400
-            )
-
         user = request.user
+        old = request.data.get("old_password")
+        new = request.data.get("new_password")
 
-        if not user.check_password(old_password):
+        if not user.check_password(old):
             return Response({"error": "Old password incorrect"}, status=400)
 
-        try:
-            validate_password(new_password, user)
-        except Exception as e:
-            return Response({"error": list(e.messages)}, status=400)
-
-        user.set_password(new_password)
-        user.save(update_fields=["password"])
-
-        return Response({"message": "Password changed successfully"}, status=200)
+        validate_password(new, user)
+        user.set_password(new)
+        user.save()
+        return Response({"message": "Password changed"})
 
 
-class EmployeeListCreateAPIView(APIView):
+class UserListCreateAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        employees = (
-            Employee.objects
-            .filter(is_active=True)
-            .prefetch_related(
-                "expense_set__payments",
-                "expense_set__category"
-            )
-            .select_related("created_by")
-        )
-
-        serializer = EmployeeSerializer(employees, many=True)
-        return Response(serializer.data)
+        users = User.objects.all()
+        return Response([{
+            "id": u.id,
+            "username": u.username,
+            "email": u.email,
+            "is_active": u.is_active
+        } for u in users])
 
     def post(self, request):
-        serializer = EmployeeSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(created_by=request.user)
-        return Response(serializer.data, status=201)
+        user = User.objects.create_user(
+            username=request.data["username"],
+            email=request.data.get("email"),
+            password=request.data["password"],
+            is_staff=True
+        )
+        return Response({"id": user.id}, status=201)
+    
 
-
-class EmployeeDetailAPIView(APIView):
+class UserDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        return Response(EmployeeSerializer(get_object_or_404(Employee, pk=pk)).data)
+        u = get_object_or_404(User, pk=pk)
+        return Response({
+            "id": u.id,
+            "username": u.username,
+            "email": u.email,
+            "is_active": u.is_active
+        })
+
+    def patch(self, request, pk):
+        u = get_object_or_404(User, pk=pk)
+        u.is_active = request.data.get("is_active", u.is_active)
+        u.save(update_fields=["is_active"])
+        return Response({
+            "id": u.id,
+            "username": u.username,
+            "email": u.email,
+            "is_active": u.is_active
+        })
 
     def put(self, request, pk):
-        e = get_object_or_404(Employee, pk=pk)
-        s = EmployeeSerializer(e, data=request.data)
+        u = get_object_or_404(User, pk=pk)
+
+        username = request.data.get("username")
+        email = request.data.get("email")
+        is_active = request.data.get("is_active")
+
+        if username is not None:
+            u.username = username
+
+        if email is not None:
+            u.email = email
+
+        if is_active is not None:
+            u.is_active = is_active
+
+        u.save()
+
+        return Response({
+            "id": u.id,
+            "username": u.username,
+            "email": u.email,
+            "is_active": u.is_active
+        })
+
+class VendorListCreateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(VendorSerializer(Vendor.objects.all(), many=True).data)
+
+    def post(self, request):
+        s = VendorSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        s.save(created_by=request.user)
+        return Response(s.data, status=201)
+
+
+class VendorDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        return Response(VendorSerializer(get_object_or_404(Vendor, pk=pk)).data)
+
+    def put(self, request, pk):
+        v = get_object_or_404(Vendor, pk=pk)
+        s = VendorSerializer(v, data=request.data)
         s.is_valid(raise_exception=True)
         s.save()
         return Response(s.data)
 
     def delete(self, request, pk):
-        e = get_object_or_404(Employee, pk=pk)
-        e.is_active = False
-        e.save()
+        v = get_object_or_404(Vendor, pk=pk)
+        v.is_active = False
+        v.save()
         return Response(status=204)
+
+class VendorBankDetailsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, vendor_id=None, pk=None):
+        if pk:
+            bank = get_object_or_404(VendorBankDetails, pk=pk)
+            return Response(VendorBankDetailsSerializer(bank).data)
+
+        if vendor_id:
+            banks = VendorBankDetails.objects.filter(vendor_id=vendor_id)
+            return Response(
+                VendorBankDetailsSerializer(banks, many=True).data
+            )
+
+        return Response(
+            {"error": "vendor_id is required"},
+            status=400
+        )
+
+    def post(self, request, vendor_id=None):
+        if not vendor_id:
+            return Response(
+                {"error": "vendor_id is required"},
+                status=400
+            )
+
+        data = request.data.copy()
+        data["vendor"] = vendor_id
+
+        serializer = VendorBankDetailsSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=201)
+
+    def put(self, request, pk=None):
+        bank = get_object_or_404(VendorBankDetails, pk=pk)
+        serializer = VendorBankDetailsSerializer(bank, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, pk=None):
+        bank = get_object_or_404(VendorBankDetails, pk=pk)
+        bank.is_active = False
+        bank.save(update_fields=["is_active"])
+        return Response(status=204)
+
+
+
+class VendorExpensesAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        expenses = Expense.objects.filter(vendor_id=pk)
+        return Response(ExpenseSerializer(expenses, many=True).data)
 
 
 class ExpenseCategoryListCreateAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(ExpenseCategorySerializer(ExpenseCategory.objects.filter(is_active=True), many=True).data)
+        return Response(
+            ExpenseCategorySerializer(ExpenseCategory.objects.all(), many=True).data
+        )
 
     def post(self, request):
         s = ExpenseCategorySerializer(data=request.data)
@@ -655,11 +353,17 @@ class ExpenseCategoryListCreateAPIView(APIView):
         return Response(s.data, status=201)
 
 
-class ExpenseListCreateAPIView(APIView):
+class ExpenseAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        return Response(ExpenseSerializer(Expense.objects.all(), many=True).data)
+    def get(self, request, pk=None):
+        if pk:
+            return Response(
+                ExpenseSerializer(get_object_or_404(Expense, pk=pk)).data
+            )
+        return Response(
+            ExpenseSerializer(Expense.objects.all(), many=True).data
+        )
 
     def post(self, request):
         s = ExpenseSerializer(data=request.data)
@@ -667,19 +371,8 @@ class ExpenseListCreateAPIView(APIView):
         s.save(created_by=request.user)
         return Response(s.data, status=201)
 
-
-class ExpenseDetailAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, pk):
-        return Response(ExpenseSerializer(get_object_or_404(Expense, pk=pk)).data)
-
     def put(self, request, pk):
         e = get_object_or_404(Expense, pk=pk)
-
-        if e.status == Expense.STATUS_PAID:
-            return Response({"error": "Expense already paid"}, status=400)
-
         s = ExpenseSerializer(e, data=request.data)
         s.is_valid(raise_exception=True)
         s.save(updated_by=request.user)
@@ -689,254 +382,432 @@ class ExpenseDetailAPIView(APIView):
         get_object_or_404(Expense, pk=pk).delete()
         return Response(status=204)
 
-
-class EmployeeExpensesAPIView(APIView):
+class AllExpensesAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, pk):
-        employee = get_object_or_404(Employee, pk=pk, is_active=True)
+    def get(self, request):
+        generate_recurring_expenses()
 
-        expenses = (
-            Expense.objects.filter(employee=employee)
-            .select_related("employee", "category", "created_by", "updated_by")
-            .prefetch_related("payments__created_by")
-            .order_by("-created_at")
-        )
+        expenses = Expense.objects.select_related(
+            "vendor", "category", "project"
+        ).order_by("-created_at")
 
         serializer = ExpenseSerializer(expenses, many=True)
-
-        return Response(
-            {
-                "employee": {
-                    "employee_id": employee.employee_id,
-                    "full_name": employee.full_name,
-                    "department": employee.department,
-                    "designation": employee.designation,
-                },
-                "expenses": serializer.data,
-            }
-        )
-    
-
+        return Response(serializer.data)
 
 class PaymentListCreateAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    
+
     def get(self, request):
-        payments = (
-            Payment.objects
-            .select_related("expense", "expense__employee", "created_by")
-            .order_by("-paid_at")
-        )
-
+        payments = Payment.objects.all()
         serializer = PaymentSerializer(payments, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data)
 
-    @transaction.atomic
     def post(self, request):
         serializer = PaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        expense = serializer.validated_data["expense"]
-        amount = serializer.validated_data["amount"]
-
-        remaining = expense.amount_requested - expense.amount_paid
-
-        if amount > remaining:
-            return Response(
-                {"error": "Payment exceeds remaining balance"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         payment = serializer.save(created_by=request.user)
 
-        Expense.objects.filter(pk=expense.pk).update(
-            amount_paid=F("amount_paid") + amount
-        )
+        expense = payment.expense
 
-        expense.refresh_from_db()
+        total_paid = expense.payments.aggregate(
+            total=Sum("amount")
+        )["total"] or 0
 
-        if expense.amount_paid == 0:
-            expense.status = Expense.STATUS_UNPAID
-        elif expense.amount_paid < expense.amount_requested:
+        expense.amount_paid = total_paid
+
+        if total_paid == 0:
+            expense.status = Expense.STATUS_PENDING
+        elif total_paid < expense.amount_requested:
             expense.status = Expense.STATUS_PARTIAL
         else:
             expense.status = Expense.STATUS_PAID
 
-        expense.save(update_fields=["status"])
+        expense.save(update_fields=["amount_paid", "status"])
 
         return Response(
-    {
-        "message": "Payment added successfully",
-        "expense": ExpenseSerializer(expense).data
-    },
-    status=status.HTTP_201_CREATED
-)
+            PaymentSerializer(payment).data,
+            status=status.HTTP_201_CREATED
+        )
+
 
 class PaymentDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        payment = get_object_or_404(Payment, pk=pk)
-        return Response(PaymentSerializer(payment).data)
+        return Response(
+            PaymentSerializer(get_object_or_404(Payment, pk=pk)).data
+        )
+
+
+class ProjectAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk=None):
+        if pk:
+            project = get_object_or_404(Project, pk=pk)
+            serializer = ProjectSerializer(project)
+            return Response(serializer.data)
+
+        projects = Project.objects.filter(is_active=True)
+        serializer = ProjectSerializer(projects, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = ProjectSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def put(self, request, pk):
+        project = get_object_or_404(Project, pk=pk)
+        serializer = ProjectSerializer(project, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def patch(self, request, pk):
+        project = get_object_or_404(Project, pk=pk)
+        serializer = ProjectSerializer(
+            project,
+            data=request.data,
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
     def delete(self, request, pk):
-        payment = get_object_or_404(Payment, pk=pk)
-        expense = payment.expense
-
-        if expense.status == Expense.STATUS_PAID:
-            return Response(
-                {"error": "Cannot delete payment for paid expense"},
-                status=400
-            )
-
-        payment.delete()
-        return Response(status=204)
+        project = get_object_or_404(Project, pk=pk)
+        project.is_active = False
+        project.save(update_fields=["is_active"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class EmployeePaymentsAPIView(APIView):
+class ProjectDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        payments = Payment.objects.filter(expense__employee__pk=pk).order_by("paid_at")
-        serializer = PaymentMiniSerializer(payments, many=True)
-        return Response(serializer.data)
-    
-class ExpenseReportExcelAPIView(APIView):
+        return Response(
+            ProjectSerializer(get_object_or_404(Project, pk=pk)).data
+        )
+
+    def put(self, request, pk):
+        p = get_object_or_404(Project, pk=pk)
+        s = ProjectSerializer(p, data=request.data)
+        s.is_valid(raise_exception=True)
+        s.save()
+        return Response(s.data)
+
+    def delete(self, request, pk):
+        p = get_object_or_404(Project, pk=pk)
+        p.is_active = False
+        p.save()
+        return Response(status=204)
+
+
+class ProjectExpensesAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        expenses = Expense.objects.filter(project_id=pk)
+        return Response(ExpenseSerializer(expenses, many=True).data)
+
+
+class ExpenseCarryForwardAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        start_date = request.data.get("start_date")
-        end_date = request.data.get("end_date")
+        period = request.data.get("period")
+        year = request.data.get("year")
+        month = request.data.get("month")
+        week_start = request.data.get("week_start")
+        week_end = request.data.get("week_end")
 
-        expenses = Expense.objects.select_related(
-            "employee", "category", "created_by"
+        generate_recurring_expenses()
+
+        if period == "weekly":
+            if not week_start or not week_end:
+                return Response(
+                    {"error": "week_start and week_end are required for weekly carry forward"},
+                    status=400
+                )
+
+            start_date = timezone.make_aware(datetime.fromisoformat(week_start))
+            end_date = timezone.make_aware(datetime.fromisoformat(week_end))
+
+        elif period == "monthly":
+            if not year or not month:
+                return Response(
+                    {"error": "year and month are required for monthly carry forward"},
+                    status=400
+                )
+
+            start_date = timezone.make_aware(datetime(int(year), int(month), 1))
+            if int(month) == 12:
+                end_date = timezone.make_aware(datetime(int(year) + 1, 1, 1))
+            else:
+                end_date = timezone.make_aware(datetime(int(year), int(month) + 1, 1))
+
+        elif period == "yearly":
+            if not year:
+                return Response(
+                    {"error": "year is required for yearly carry forward"},
+                    status=400
+                )
+
+            start_date = timezone.make_aware(datetime(int(year), 1, 1))
+            end_date = timezone.make_aware(datetime(int(year) + 1, 1, 1))
+
+        else:
+            return Response(
+                {"error": "Invalid period. Use weekly, monthly, or yearly"},
+                status=400
+            )
+
+        expenses = Expense.objects.filter(
+            created_at__gte=start_date,
+            created_at__lt=end_date
         )
 
-        if start_date and end_date:
-            expenses = expenses.filter(
-                created_at__date__gte=start_date,
-                created_at__date__lte=end_date
+        carried_count = 0
+
+        with transaction.atomic():
+            for expense in expenses:
+                remaining = expense.amount_requested - expense.amount_paid
+
+                if remaining > 0:
+                    Expense.objects.create(
+                        vendor=expense.vendor,
+                        project=expense.project,
+                        category=expense.category,
+                        amount_requested=remaining,
+                        amount_paid=0,
+                        status=Expense.STATUS_PENDING,
+                        reason=f"Carry forward ({period}) from {start_date.date()}",
+                        created_by=expense.created_by,
+                    )
+                    carried_count += 1
+
+        return Response({
+            "message": f"{period.capitalize()} carry forward completed",
+            "period": period,
+            "from_date": start_date.date(),
+            "to_date": end_date.date(),
+            "total_expenses_checked": expenses.count(),
+            "total_carried_forward": carried_count,
+        })
+        
+        
+class ExpenseReportExcelAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return self._generate_excel(request)
+
+    def post(self, request):
+        return self._generate_excel(request)
+
+    def _generate_excel(self, request):
+        data_source = request.query_params if request.method == "GET" else request.data
+
+        period = data_source.get("period")
+        year = data_source.get("year")
+        month = data_source.get("month")
+        week_start = data_source.get("week_start")
+        week_end = data_source.get("week_end")
+
+        expenses = Expense.objects.select_related(
+            "vendor", "category", "project"
+        )
+
+        if period == "weekly" and week_start and week_end:
+            start_date = timezone.make_aware(datetime.fromisoformat(week_start))
+            end_date = timezone.make_aware(datetime.fromisoformat(week_end))
+            expenses = expenses.filter(created_at__gte=start_date, created_at__lt=end_date)
+
+        elif period == "monthly" and year and month:
+            start_date = timezone.make_aware(datetime(int(year), int(month), 1))
+            end_date = (
+                timezone.make_aware(datetime(int(year) + 1, 1, 1))
+                if int(month) == 12
+                else timezone.make_aware(datetime(int(year), int(month) + 1, 1))
             )
-            filename = f"expense_report_{start_date}_to_{end_date}.xlsx"
-        else:
-            filename = "expense_report_all.xlsx"
+            expenses = expenses.filter(created_at__gte=start_date, created_at__lt=end_date)
+
+        elif period == "yearly" and year:
+            start_date = timezone.make_aware(datetime(int(year), 1, 1))
+            end_date = timezone.make_aware(datetime(int(year) + 1, 1, 1))
+            expenses = expenses.filter(created_at__gte=start_date, created_at__lt=end_date)
 
         wb = Workbook()
         ws = wb.active
-        ws.title = "Expenses"
+        ws.title = "Expense Report"
 
         ws.append([
             "Expense ID",
-            "Employee",
+            "Vendor",
             "Category",
+            "Project",
             "Amount Requested",
             "Amount Paid",
+            "Remaining",
             "Status",
-            "Created By",
+            "Reason",
             "Created At",
         ])
 
         for e in expenses:
             ws.append([
                 e.id,
-                e.employee.full_name,
+                e.vendor.name if e.vendor else "",
                 e.category.name,
+                e.project.name if e.project else "",
                 float(e.amount_requested),
                 float(e.amount_paid),
+                float(e.remaining_amount),
                 e.status,
-                e.created_by.username if e.created_by else "",
+                e.reason,
                 e.created_at.strftime("%Y-%m-%d"),
             ])
 
         response = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        response["Content-Disposition"] = (
-            f'attachment; filename="{filename}"'
-        )
-
+        response["Content-Disposition"] = 'attachment; filename="expense_report.xlsx"'
         wb.save(response)
+
         return response
 
 
 class ExpenseReportPDFAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        return self._generate_pdf(request)
+
     def post(self, request):
-        start_date = request.data.get("start_date")
-        end_date = request.data.get("end_date")
+        return self._generate_pdf(request)
+
+    def _generate_pdf(self, request):
+        data_source = request.query_params if request.method == "GET" else request.data
+
+        period = data_source.get("period")
+        year = data_source.get("year")
+        month = data_source.get("month")
+        week_start = data_source.get("week_start")
+        week_end = data_source.get("week_end")
 
         expenses = Expense.objects.select_related(
-            "employee", "category", "created_by"
+            "vendor", "category", "project"
         )
 
-        if start_date and end_date:
-            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+        if period == "weekly" and week_start and week_end:
+            start_date = timezone.make_aware(datetime.fromisoformat(week_start))
+            end_date = timezone.make_aware(datetime.fromisoformat(week_end))
+            expenses = expenses.filter(created_at__gte=start_date, created_at__lt=end_date)
 
-            expenses = expenses.filter(
-                created_at__date__gte=start_date,
-                created_at__date__lte=end_date
+        elif period == "monthly" and year and month:
+            start_date = timezone.make_aware(datetime(int(year), int(month), 1))
+            end_date = (
+                timezone.make_aware(datetime(int(year) + 1, 1, 1))
+                if int(month) == 12
+                else timezone.make_aware(datetime(int(year), int(month) + 1, 1))
             )
+            expenses = expenses.filter(created_at__gte=start_date, created_at__lt=end_date)
 
-            filename = f"expense_report_{start_date}_to_{end_date}.pdf"
-        else:
-            filename = "expense_report_all.pdf"
+        elif period == "yearly" and year:
+            start_date = timezone.make_aware(datetime(int(year), 1, 1))
+            end_date = timezone.make_aware(datetime(int(year) + 1, 1, 1))
+            expenses = expenses.filter(created_at__gte=start_date, created_at__lt=end_date)
+
+        total_remaining = expenses.aggregate(
+            total=Sum(F("amount_requested") - F("amount_paid"))
+        )["total"] or 0
 
         response = HttpResponse(content_type="application/pdf")
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        response["Content-Disposition"] = 'attachment; filename="expense_report.pdf"'
 
-        doc = SimpleDocTemplate(
-            response,
-            pagesize=A4,
-            rightMargin=30,
-            leftMargin=30,
-            topMargin=30,
-            bottomMargin=30,
-        )
-
+        doc = SimpleDocTemplate(response, pagesize=A4)
         styles = getSampleStyleSheet()
-        elements = []
+        elements = [Paragraph("Expense Report", styles["Title"]), Spacer(1, 12)]
 
-        elements.append(Paragraph("<b>Expense Report</b>", styles["Title"]))
-
-        table_data = [
-            [
-                "Employee",
-                "Category",
-                "Amount Requested",
-                "Amount Paid",
-                "Remaining",
-                "Status",
-                "Date",
-            ]
-        ]
+        data = [[
+            "ID",
+            "Vendor",
+            "Category",
+            "Project",
+            "Requested",
+            "Paid",
+            "Remaining",
+            "Status",
+        ]]
 
         for e in expenses:
-            table_data.append([
-                e.employee.full_name,
+            data.append([
+                str(e.id),
+                e.vendor.name if e.vendor else "",
                 e.category.name,
+                e.project.name if e.project else "",
                 str(e.amount_requested),
                 str(e.amount_paid),
-                str(e.amount_requested - e.amount_paid),
+                str(e.remaining_amount),
                 e.status,
-                e.created_at.strftime("%Y-%m-%d"),
             ])
 
-        table = Table(table_data, repeatRows=1)
-
+        table = Table(data, repeatRows=1)
         table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("ALIGN", (2, 1), (-1, -1), "CENTER"),
-            ("GRID", (0, 0), (-1, -1), 1, colors.black),
-            ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
-            ("TOPPADDING", (0, 0), (-1, 0), 8),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ]))
 
         elements.append(table)
+        elements.append(Spacer(1, 20))
+
+        elements.append(
+            Paragraph(
+                f"<b>Total Remaining Amount :</b> {total_remaining}",
+                styles["Heading3"]
+            )
+        )
+
         doc.build(elements)
 
         return response
+    
+class RecurringExpenseListCreateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = RecurringExpense.objects.all()
+        serializer = RecurringExpenseSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = RecurringExpenseSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(created_by=request.user)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+class RecurringExpenseDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        obj = get_object_or_404(RecurringExpense, pk=pk)
+        serializer = RecurringExpenseSerializer(obj)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        obj = get_object_or_404(RecurringExpense, pk=pk)
+        serializer = RecurringExpenseSerializer(obj, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, pk):
+        obj = get_object_or_404(RecurringExpense, pk=pk)
+        obj.is_active = False
+        obj.save(update_fields=["is_active"])
+        return Response(status=status.HTTP_204_NO_CONTENT)

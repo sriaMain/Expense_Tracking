@@ -62,10 +62,10 @@ EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 
-EMAIL_HOST_USER = "gdurgaprasad065@gmail.com"
-EMAIL_HOST_PASSWORD = "enqi oqtk yzas vipp"
+EMAIL_HOST_USER = "sriainfotech@gmail.com"
+EMAIL_HOST_PASSWORD = "tjcswiwbnlndihsh"
 
-DEFAULT_FROM_EMAIL = "Expense Tracker <gdurgaprasad065@gmail.com>"
+DEFAULT_FROM_EMAIL = "Expense Tracker <sriainfotech@gmail.com>"
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=20),

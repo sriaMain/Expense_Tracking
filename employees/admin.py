@@ -1,19 +1,36 @@
 from django.contrib import admin
 from .models import (
-    Employee,
+    Vendor,
+    VendorBankDetails,
     ExpenseCategory,
     Expense,
     Payment,
-    PasswordResetOTP
+    PasswordResetOTP,
+    RecurringExpense,
+    Project,
 )
 
 
-@admin.register(Employee)
-class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ("employee_id", "full_name", "department", "designation", "is_active")
-    list_filter = ("department", "designation", "is_active")
-    search_fields = ("full_name",)
-    ordering = ("employee_id",)
+@admin.register(Vendor)
+class VendorAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "contact_number", "is_active")
+    list_filter = ("is_active",)
+    search_fields = ("name", "contact_number")
+
+
+@admin.register(VendorBankDetails)
+class VendorBankDetailsAdmin(admin.ModelAdmin):
+    list_display = (
+        "vendor",
+        "bank_name",
+        "account_number",
+        "account_type",
+        "ifsc_code",
+        "is_active",
+    )
+    list_filter = ("bank_name", "account_type", "is_active")
+    search_fields = ("vendor__name", "account_number", "ifsc_code")
+
 
 
 @admin.register(ExpenseCategory)
@@ -27,7 +44,7 @@ class ExpenseCategoryAdmin(admin.ModelAdmin):
 class ExpenseAdmin(admin.ModelAdmin):
     list_display = (
         "id",
-        "employee",
+        "vendor",
         "category",
         "amount_requested",
         "amount_paid",
@@ -35,10 +52,23 @@ class ExpenseAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("status", "category")
-    search_fields = ("employee__full_name",)
+    search_fields = ("vendor__name",)
     readonly_fields = ("amount_paid", "created_at", "updated_at")
     ordering = ("-created_at",)
 
+@admin.register(RecurringExpense)
+class RecurringExpenseAdmin(admin.ModelAdmin):
+    list_display = (
+        "vendor",
+        "category",
+        "project",
+        "amount",
+        "frequency",
+        "start_date",
+        "is_active",
+    )
+    list_filter = ("frequency", "is_active")
+    search_fields = ("vendor__name",)
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
@@ -52,3 +82,9 @@ class PasswordResetOTPAdmin(admin.ModelAdmin):
     list_display = ("user", "otp", "is_verified", "created_at")
     list_filter = ("is_verified", "created_at")
     readonly_fields = ("otp", "created_at")
+
+@admin.register(Project)
+class ProjectAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "budget", "is_active")
+    list_filter = ("is_active",)
+    search_fields = ("name",)
