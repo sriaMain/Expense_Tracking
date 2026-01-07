@@ -1,56 +1,44 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/hooks/useAppDispatch';
-import { fetchExpenses, addExpense, makePayment } from '@/store/slices/expenseSlice';
-import { fetchEmployees, addEmployee } from '@/store/slices/employeeSlice';
-import { fetchCategories, addCategory } from '@/store/slices/categorySlice';
-import { Plus, X, IndianRupee, Loader2, Receipt, Calendar } from 'lucide-react';
+import { fetchExpenses, fetchRecurringExpenses, makePayment, fetchCarryForward, setSelectedMonth } from '@/store/slices/expenseSlice';
+import { fetchVendors } from '@/store/slices/vendorSlice';
+import { fetchCategories } from '@/store/slices/categorySlice';
+import { fetchProjects } from '@/store/slices/projectSlice';
+import { Plus, X, IndianRupee, Loader2, Receipt, Calendar, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import SearchableSelect from '@/components/SearchableSelect';
 
 const ExpenseRecords = () => {
   const dispatch = useAppDispatch();
-  const { expenses, isLoading: expensesLoading, selectedMonth } = useAppSelector((state) => state.expense);
-  const { employees, isLoading: employeesLoading } = useAppSelector((state) => state.employee);
-  const { categories, isLoading: categoriesLoading } = useAppSelector((state) => state.category);
-  const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [showEmployeeForm, setShowEmployeeForm] = useState(false);
-  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const navigate = useNavigate();
+  const { expenses, recurringExpenses, isLoading: expensesLoading, selectedMonth, total_remaining_amount } = useAppSelector((state) => state.expense);
+  const { vendors } = useAppSelector((state) => state.vendor);
+  const { categories } = useAppSelector((state) => state.category);
+  const { projects } = useAppSelector((state) => state.project);
 
-  // Expense Form states
-  const [selectedEmployee, setSelectedEmployee] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [amountRequested, setAmountRequested] = useState('');
-  const [amountPaid, setAmountPaid] = useState('');
-
-  // Employee Form states
-  const [empFullName, setEmpFullName] = useState('');
-  const [empDepartment, setEmpDepartment] = useState('');
-  const [empDesignation, setEmpDesignation] = useState('');
-
-  // Category Form states
-  const [categoryName, setCategoryName] = useState('');
-
-  // Payment Modal state
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState('');
-
-  // Details Modal state
-  const [selectedExpenseId, setSelectedExpenseId] = useState<number | null>(null);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'expenses' | 'recurring'>('expenses');
 
   useEffect(() => {
     dispatch(fetchExpenses());
-    dispatch(fetchEmployees());
+    dispatch(fetchRecurringExpenses());
+    dispatch(fetchVendors());
     dispatch(fetchCategories());
+    dispatch(fetchProjects());
   }, [dispatch]);
 
-  // Helper to get names from IDs
-  const getEmployeeName = (id: number) => {
-    const emp = employees.find(e => e.employee_id === id || e.id === id);
-    return emp ? (emp.employee_name || emp.full_name || emp.full_name) : 'Unknown Employee';
+  const getVendorName = (id: number | string) => {
+    if (typeof id === 'string') return id;
+    const vendor = vendors.find(v => v.id === id);
+    return vendor ? vendor.name : 'Unknown Vendor';
   };
+
   const getCategoryName = (id: number) => categories.find(c => c.id === id)?.name || 'Unknown Category';
+
+  const getProjectName = (id?: number) => {
+    if (!id) return '-';
+    return projects.find(p => p.id === id)?.name || 'Unknown Project';
+  };
 
   const formatDateIST = (dateString?: string) => {
     if (!dateString) return '-';
@@ -65,161 +53,18 @@ const ExpenseRecords = () => {
     });
   };
 
-
-
   const handleRowClick = (expenseId: number) => {
-    setSelectedExpenseId(expenseId);
-    setShowDetailsModal(true);
+    navigate(`/expenses/${expenseId}`);
   };
 
-  const handleAddExpense = async () => {
-    if (!selectedEmployee || !selectedCategory || !amountRequested) {
-      toast.error('Please fill in all fields');
-      return;
-    }
-
-    console.log(selectedEmployee, selectedCategory, amountRequested, amountPaid);
-
-    try {
-      const result = await dispatch(addExpense({
-
-        employee: parseInt(selectedEmployee),
-        category: parseInt(selectedCategory),
-        amount_requested: parseFloat(amountRequested),
-      })).unwrap();
-
-      // If there's an initial amount paid, record it immediately
-      if (amountPaid && parseFloat(amountPaid) > 0) {
-        await dispatch(makePayment({
-          expense: result.employee_id,
-          amount: parseFloat(amountPaid),
-        })).unwrap();
-      }
-
-      toast.success('Expense added successfully');
-      setShowExpenseModal(false);
-      resetExpenseForm();
-      dispatch(fetchExpenses());
-    } catch (error) {
-      toast.error((error as string) || 'Failed to add expense');
-    }
-  };
-
-  const handleAddEmployee = async () => {
-    if (!empFullName || !empDepartment || !empDesignation) {
-      toast.error('Please fill in all employee details');
-      return;
-    }
-
-    try {
-      const result = await dispatch(addEmployee({
-        full_name: empFullName,
-        department: empDepartment,
-        designation: empDesignation,
-      })).unwrap();
-
-      toast.success('Employee/Vendor created successfully');
-      setShowEmployeeForm(false);
-
-      // Auto-select the new employee
-      let newEmployeeId = result.employee_id || result.id;
-
-      // If ID is missing from create response, fetch list and find it
-      if (!newEmployeeId) {
-        const employeesList = await dispatch(fetchEmployees()).unwrap();
-        // Try to find the employee we just added by name
-        // Note: API might return 'employee_name' or 'full_name'
-        const found = employeesList.find((e: any) =>
-          (e.employee_name === empFullName) ||
-          (e.full_name === empFullName) ||
-          (e.full_nmae === empFullName)
-        );
-
-        if (found) {
-          newEmployeeId = found.employee_id || found.id;
-        }
-      }
-
-      if (newEmployeeId) {
-        setSelectedEmployee(newEmployeeId.toString());
-      }
-      resetEmployeeForm();
-    } catch (error) {
-      toast.error((error as string) || 'Failed to add employee');
-    }
-  };
-
-  const handleAddCategory = async () => {
-    if (!categoryName) {
-      toast.error('Please enter category name');
-      return;
-    }
-
-    try {
-      const result = await dispatch(addCategory({
-        name: categoryName,
-      })).unwrap();
-
-      toast.success('Category created successfully');
-      setShowCategoryForm(false);
-      // Auto-select the new category
-      setSelectedCategory(result.id.toString());
-      setCategoryName('');
-    } catch (error) {
-      toast.error((error as string) || 'Failed to add category');
-    }
-  };
-
-  const handleMakePayment = async () => {
-    if (!selectedExpenseId || !paymentAmount) return;
-
-    try {
-      await dispatch(makePayment({
-        expense: selectedExpenseId,
-        amount: parseFloat(paymentAmount),
-      })).unwrap();
-
-      toast.success('Payment recorded successfully');
-      setShowPaymentModal(false);
-      setPaymentAmount('');
-      // Refresh expenses to get updated payment data
-      dispatch(fetchExpenses());
-    } catch (error) {
-      toast.error((error as string) || 'Failed to record payment');
-    }
-  };
-
-  const resetExpenseForm = () => {
-    setSelectedEmployee('');
-    setSelectedCategory('');
-    setAmountRequested('');
-    setAmountPaid('');
-  };
-
-  const resetEmployeeForm = () => {
-    setEmpFullName('');
-    setEmpDepartment('');
-    setEmpDesignation('');
-  };
-
-  const handleEmployeeChange = (value: string) => {
-    setSelectedEmployee(value);
-  };
-
-  const handleCategoryChange = (value: string) => {
-    setSelectedCategory(value);
-  };
-
-  // Filter expenses by month (assuming date is created_at or updated_at)
-  const filteredExpenses = expenses.filter(exp => {
-    const date = exp.created_at || exp.updated_at || '';
-    return date.startsWith(selectedMonth);
-  });
+  const filteredExpenses = expenses
+    .filter(exp => {
+      const date = exp.created_at || exp.updated_at || '';
+      return date.startsWith(selectedMonth);
+    })
+    .sort((a, b) => b.id - a.id);
 
   const totalPaid = filteredExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_paid), 0);
-  const selectedExpense = expenses.find(e => e.id === selectedExpenseId);
-
-
 
   return (
     <div className="animate-fade-in pb-20">
@@ -228,123 +73,199 @@ const ExpenseRecords = () => {
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">Expense Records</h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">Manage and track all expense transactions</p>
         </div>
-        <button
-          onClick={() => setShowExpenseModal(true)}
-          className="btn-primary w-full sm:w-auto"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Expense
-        </button>
-      </div>
-
-      {/* Summary Card */}
-      <div className="stat-card mb-6 sm:mb-8 flex items-center justify-between">
-        <div>
-          <p className="text-2xl sm:text-2xl font-bold text-muted-foreground mb-1">Total Paid This Month</p>
-        </div>
-        <div className="p-3 rounded-lg">
-          {/* <IndianRupee className="w-6 h-6 sm:w-8 sm:h-8 text-success" /> */}
-          <p className="text-2xl sm:text-3xl font-bold text-foreground">₹{totalPaid.toLocaleString()}</p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => navigate('/expenses/add')}
+            className="btn-primary w-full sm:w-auto"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Expense
+          </button>
         </div>
       </div>
 
-      {/* Month Filter */}
-      <div className="mb-4 sm:mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <div className="stat-card flex items-center justify-between">
+          <div>
+            <p className="text-sm sm:text-base font-medium text-muted-foreground mb-1">Total Paid This Month</p>
+            <p className="text-2xl sm:text-3xl font-bold text-foreground">₹{totalPaid.toLocaleString()}</p>
+          </div>
+          <div className="p-3 bg-success/10 rounded-lg">
+            <IndianRupee className="w-6 h-6 text-success" />
+          </div>
+        </div>
+
+        <div className="stat-card flex items-center justify-between">
+          <div>
+            <p className="text-sm sm:text-base font-medium text-muted-foreground mb-1">Carry Forward Amount</p>
+            <p className="text-2xl sm:text-3xl font-bold text-foreground">₹{total_remaining_amount.toLocaleString()}</p>
+          </div>
+          <div className="p-3 bg-primary/10 rounded-lg">
+            <TrendingUp className="w-6 h-6 text-primary" />
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <input
           type="month"
           value={selectedMonth}
-          onChange={(e) => dispatch({ type: 'expense/setSelectedMonth', payload: e.target.value })}
+          onChange={(e) => dispatch(setSelectedMonth(e.target.value))}
           className="input-field w-full sm:w-auto"
         />
-      </div>
 
-      {/* Transactions Table - Desktop */}
-      <div className="card-elevated overflow-hidden hidden md:block">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-muted">
-              <tr>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Employee/Vendor</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Category</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Requested</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Paid</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Remaining Amount</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Created By</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {expensesLoading ? (
-                <tr>
-                  <td colSpan={5} className="py-12 text-center">
-                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-                  </td>
-                </tr>
-              ) : filteredExpenses.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-12 text-center text-muted-foreground">
-                    No expense records found for this month
-                  </td>
-                </tr>
-              ) : (
-                filteredExpenses.map((expense) => (
-                  <tr
-                    key={expense.id}
-                    onClick={() => handleRowClick(expense.id)}
-                    className="table-row-hover border-b border-border last:border-0 cursor-pointer"
-                  >
-                    <td className="py-4 px-6 text-sm font-medium text-foreground">{getEmployeeName(expense.employee)}</td>
-                    <td className="py-4 px-6 text-sm text-muted-foreground">{getCategoryName(expense.category)}</td>
-                    <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</td>
-                    <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</td>
-                    <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.remaining_amount).toLocaleString()}</td>
-                    <td className="py-4 px-6 text-sm text-muted-foreground">{expense.created_by?.username || '-'}</td>
-                    <td className="py-4 px-6">
-                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
-                        ? 'bg-success/10 text-success'
-                        : expense.status === 'PARTIAL'||'PARTIALL_PAID'
-                          ? 'bg-warning/10 text-warning'
-                          : 'bg-destructive/10 text-destructive'
-                        }`}>
-                        {expense.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="flex gap-2 bg-muted p-1 rounded-lg">
+          <button
+            onClick={() => setActiveTab('expenses')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'expenses'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+              }`}
+          >
+            Expenses
+          </button>
+          <button
+            onClick={() => setActiveTab('recurring')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'recurring'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+              }`}
+          >
+            Recurring
+          </button>
         </div>
       </div>
 
-      {/* Transactions Cards - Mobile */}
+      {activeTab === 'expenses' ? (
+        <div className="card-elevated overflow-hidden hidden md:block">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Vendor</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Category</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Project</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Requested</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Paid</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Remaining</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Created By</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expensesLoading ? (
+                  <tr>
+                    <td colSpan={8} className="py-12 text-center">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+                    </td>
+                  </tr>
+                ) : filteredExpenses.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-12 text-center text-muted-foreground">
+                      No expense records found
+                    </td>
+                  </tr>
+                ) : (
+                  filteredExpenses.map((expense) => (
+                    <tr
+                      key={expense.id}
+                      onClick={() => handleRowClick(expense.id)}
+                      className="table-row-hover border-b border-border last:border-0 cursor-pointer"
+                    >
+                      <td className="py-4 px-6 text-sm font-medium text-foreground">{getVendorName(expense.vendor)}</td>
+                      <td className="py-4 px-6 text-sm text-muted-foreground">{getCategoryName(expense.category)}</td>
+                      <td className="py-4 px-6 text-sm text-muted-foreground">{getProjectName(expense.project)}</td>
+                      <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</td>
+                      <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</td>
+                      <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.remaining_amount).toLocaleString()}</td>
+                      <td className="py-4 px-6 text-sm text-muted-foreground">{expense.created_by?.username || '-'}</td>
+                      <td className="py-4 px-6">
+                        <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
+                          ? 'bg-success/10 text-success'
+                          : (expense.status === 'PARTIAL' || expense.status === 'PARTIAL_PAID' || expense.status === 'PARTIALLY_PAID')
+                            ? 'bg-warning/10 text-warning'
+                            : 'bg-destructive/10 text-destructive'
+                          }`}>
+                          {expense.status === 'PARTIAL_PAID' || expense.status === 'PARTIALLY_PAID' ? 'PARTIAL' : expense.status === 'UNPAID' ? 'PENDING' : expense.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="card-elevated overflow-hidden hidden md:block">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Vendor</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Category</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Amount</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Frequency</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Start Date</th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expensesLoading ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+                    </td>
+                  </tr>
+                ) : recurringExpenses.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                      No recurring expenses found
+                    </td>
+                  </tr>
+                ) : (
+                  recurringExpenses.map((expense) => (
+                    <tr
+                      key={expense.id}
+                      onClick={() => navigate(`/recurring-expenses/${expense.id}`)}
+                      className="table-row-hover border-b border-border last:border-0 cursor-pointer"
+                    >
+                      <td className="py-4 px-6 text-sm font-medium text-foreground">{getVendorName(expense.vendor.id)}</td>
+                      <td className="py-4 px-6 text-sm text-muted-foreground">{getCategoryName(expense.category)}</td>
+                      <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount).toLocaleString()}</td>
+                      <td className="py-4 px-6 text-sm text-muted-foreground">
+                        <span className="px-2 py-1 bg-primary/10 text-primary text-xs font-medium rounded-md">
+                          {expense.frequency}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-sm text-muted-foreground">{expense.start_date}</td>
+                      <td className="py-4 px-6">
+                        <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
+                          {expense.is_active ? 'ACTIVE' : 'INACTIVE'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile View */}
       <div className="md:hidden space-y-3">
-        {expensesLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
-        ) : filteredExpenses.length === 0 ? (
-          <div className="card-elevated p-8 text-center text-muted-foreground">
-            No expense records found for this month
-          </div>
-        ) : (
-          filteredExpenses.map((expense) => (
-            <div
-              key={expense.id}
-              onClick={() => handleRowClick(expense.id)}
-              className="card-elevated p-4 cursor-pointer active:scale-[0.98] transition-transform"
-            >
+        {activeTab === 'expenses' ? (
+          expensesLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+          ) : filteredExpenses.map((expense) => (
+            <div key={expense.id} onClick={() => handleRowClick(expense.id)} className="card-elevated p-4 cursor-pointer">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <p className="font-medium text-foreground">{getEmployeeName(expense.employee)}</p>
+                  <p className="font-medium text-foreground">{getVendorName(expense.vendor)}</p>
                   <p className="text-sm text-muted-foreground">{getCategoryName(expense.category)}</p>
                 </div>
-                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
-                  ? 'bg-success/10 text-success'
-                  : expense.status === 'PARTIAL'
-                    ? 'bg-warning/10 text-warning'
-                    : 'bg-destructive/10 text-destructive'
-                  }`}>
+                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
                   {expense.status}
                 </span>
               </div>
@@ -357,361 +278,38 @@ const ExpenseRecords = () => {
                   <p className="text-muted-foreground">Paid</p>
                   <p className="font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</p>
                 </div>
-                <div>
-                  <p className="text-muted-foreground">Created By</p>
-                  <p className="font-semibold text-foreground">{expense.created_by.username}</p>
-                </div>
               </div>
+            </div>
+          ))
+        ) : (
+          expensesLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+          ) : recurringExpenses.map((expense) => (
+            <div
+              key={expense.id}
+              onClick={() => navigate(`/recurring-expenses/${expense.id}`)}
+              className="card-elevated p-4 cursor-pointer"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <p className="font-medium text-foreground">{getVendorName(expense.vendor.id)}</p>
+                  <p className="text-sm text-muted-foreground">{getCategoryName(expense.category)}</p>
+                </div>
+                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
+                  {expense.is_active ? 'ACTIVE' : 'INACTIVE'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="font-semibold text-foreground text-lg">₹{parseFloat(expense.amount).toLocaleString()}</p>
+                <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
+                  {expense.frequency}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">Starts: {expense.start_date}</p>
             </div>
           ))
         )}
       </div>
-
-      {/* Expense Details Modal */}
-      <AnimatePresence>
-        {showDetailsModal && selectedExpense && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="modal-overlay flex items-center justify-center p-4 sm:p-6"
-            onClick={() => setShowDetailsModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="card-elevated w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-foreground">Expense Details</h2>
-                <button
-                  onClick={() => setShowDetailsModal(false)}
-                  className="p-1 hover:bg-muted rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-muted-foreground" />
-                </button>
-              </div>
-
-              <div className="space-y-6">
-                {/* Header Info */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Employee/Vendor</p>
-                    <p className="font-medium text-foreground">{getEmployeeName(selectedExpense.employee)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Category</p>
-                    <p className="font-medium text-foreground">{getCategoryName(selectedExpense.category)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Requested Amount</p>
-                    <p className="font-semibold text-xl text-foreground">₹{parseFloat(selectedExpense.amount_requested).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Paid Amount</p>
-                    <p className="font-semibold text-xl text-success">₹{parseFloat(selectedExpense.amount_paid).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Remaining Amount</p>
-                    <p className="font-medium text-foreground">₹{parseFloat(selectedExpense.remaining_amount).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Created By</p>
-                    <p className="font-medium text-foreground">{selectedExpense.created_by?.username || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Created At</p>
-                    <p className="font-medium text-foreground">{formatDateIST(selectedExpense.created_at)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Updated At</p>
-                    <p className="font-medium text-foreground">{formatDateIST(selectedExpense.updated_at)}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Status:</span>
-                    <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${selectedExpense.status === 'PAID'
-                      ? 'bg-success/10 text-success'
-                      : selectedExpense.status === 'PARTIAL'
-                        ? 'bg-warning/10 text-warning'
-                        : 'bg-destructive/10 text-destructive'
-                      }`}>
-                      {selectedExpense.status}
-                    </span>
-                  </div>
-                </div>
-
-
-                {/* Payment History Section */}
-                <div className="border-t border-border pt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                      <Receipt className="w-4 h-4" />
-                      Payment History
-                    </h3>
-                    {selectedExpense.status !== 'PAID' && (
-                      <button
-                        onClick={() => setShowPaymentModal(true)}
-                        className="btn-primary text-xs py-1.5 px-3 h-auto"
-                      >
-                        + Add Payment
-                      </button>
-                    )}
-                  </div>
-
-                  {!selectedExpense.payments ? (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                    </div>
-                  ) : selectedExpense.payments.length === 0 ? (
-                    <div className="text-center py-6 bg-muted/30 rounded-lg border border-dashed border-border">
-                      <p className="text-sm text-muted-foreground">No payments made yet</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {selectedExpense.payments.map((payment) => (
-                        <div key={payment.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-success/10 rounded-full flex items-center justify-center">
-                              <IndianRupee className="w-4 h-4 text-success" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-foreground">Payment #{payment.id}</p>
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                {formatDateIST(payment.paid_at)}
-                              </p>
-                            </div>
-                          </div>
-                          <p className="font-semibold text-foreground">₹{parseFloat(payment.amount).toLocaleString()}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Add Expense Modal */}
-      <AnimatePresence>
-        {showExpenseModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="modal-overlay flex items-center justify-center p-4 sm:p-6"
-            onClick={() => setShowExpenseModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="card-elevated w-full max-w-md p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-semibold text-foreground">
-                  {showEmployeeForm ? 'Create New Employee' : showCategoryForm ? 'Create New Category' : 'Add New Expense'}
-                </h2>
-                <button
-                  onClick={() => {
-                    setShowExpenseModal(false);
-                    setShowEmployeeForm(false);
-                    setShowCategoryForm(false);
-                  }}
-                  className="p-1 hover:bg-muted rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-muted-foreground" />
-                </button>
-              </div>
-
-              {showEmployeeForm ? (
-                /* Create Employee Form */
-                <div className="space-y-4">
-                  <input
-                    type="text"
-                    placeholder="Full Name"
-                    value={empFullName}
-                    onChange={(e) => setEmpFullName(e.target.value)}
-                    className="input-field"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Department"
-                    value={empDepartment}
-                    onChange={(e) => setEmpDepartment(e.target.value)}
-                    className="input-field"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Designation"
-                    value={empDesignation}
-                    onChange={(e) => setEmpDesignation(e.target.value)}
-                    className="input-field"
-                  />
-                  <div className="flex gap-3 mt-4">
-                    <button onClick={handleAddEmployee} className="btn-primary flex-1">
-                      Save Employee
-                    </button>
-                    <button
-                      onClick={() => setShowEmployeeForm(false)}
-                      className="btn-ghost flex-1"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : showCategoryForm ? (
-                /* Create Category Form */
-                <div className="space-y-4">
-                  <input
-                    type="text"
-                    placeholder="Category Name"
-                    value={categoryName}
-                    onChange={(e) => setCategoryName(e.target.value)}
-                    className="input-field"
-                  />
-                  <div className="flex gap-3 mt-4">
-                    <button onClick={handleAddCategory} className="btn-primary flex-1">
-                      Save Category
-                    </button>
-                    <button
-                      onClick={() => setShowCategoryForm(false)}
-                      className="btn-ghost flex-1"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* Expense Form */
-                <div className="space-y-4">
-                  <SearchableSelect
-                    label="Employee / Vendor"
-                    placeholder="Select Employee"
-                    value={selectedEmployee}
-                    onChange={(value) => handleEmployeeChange(value)}
-                    options={employees.map((emp) => ({
-                      value: (emp.employee_id || emp.id).toString(),
-                      label: emp.employee_name || emp.full_name || emp.full_nmae || 'Unknown',
-                    }))}
-                    showCreateOption={true}
-                    createOptionLabel="Create New Employee"
-                    onCreateClick={() => setShowEmployeeForm(true)}
-                  />
-
-                  <SearchableSelect
-                    label="Category"
-                    placeholder="Select Category"
-                    value={selectedCategory}
-                    onChange={(value) => handleCategoryChange(value)}
-                    options={categories.map((cat) => ({
-                      value: cat.id.toString(),
-                      label: cat.name,
-                    }))}
-                    showCreateOption={true}
-                    createOptionLabel="Create New Category"
-                    onCreateClick={() => setShowCategoryForm(true)}
-                  />
-
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Amount Requested</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
-                      <input
-                        type="number"
-                        placeholder="0.00"
-                        value={amountRequested}
-                        onChange={(e) => setAmountRequested(e.target.value)}
-                        className="input-field pl-8"
-                      />
-                    </div>
-                  </div>
-
-                  {/* <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Amount Paid</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
-                      <input
-                        type="number"
-                        placeholder="0.00"
-                        value={amountPaid}
-                        onChange={(e) => setAmountPaid(e.target.value)}
-                        className="input-field pl-8"
-                      />
-                    </div>
-                  </div> */}
-
-                  <div className="flex gap-3 pt-2">
-                    <button onClick={handleAddExpense} className="btn-primary flex-1">
-                      Add Expense
-                    </button>
-                    <button
-                      onClick={() => { setShowExpenseModal(false); resetExpenseForm(); }}
-                      className="btn-ghost flex-1"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Payment Modal */}
-      <AnimatePresence>
-        {showPaymentModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="modal-overlay flex items-center justify-center p-4 sm:p-6 z-[60]" // Higher z-index to sit above details modal
-            onClick={() => setShowPaymentModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="card-elevated w-full max-w-sm p-6"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-lg font-semibold text-foreground mb-4">Make Payment</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Amount to Pay</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="input-field pl-8"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={handleMakePayment} className="btn-primary flex-1">
-                    Confirm Payment
-                  </button>
-                  <button
-                    onClick={() => setShowPaymentModal(false)}
-                    className="btn-ghost flex-1"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

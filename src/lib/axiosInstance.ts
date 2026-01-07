@@ -2,14 +2,15 @@ import axios from "axios";
 import store from "../store";
 
 const axiosRefresh = axios.create({
+  baseURL: "http://72.61.240.147:8001/api/",
+  // withCredentials: true,
   // baseURL: "http://72.61.240.147/api/",
   baseURL: "http://192.168.0.113:8000/api/",
 
 });
 
 const axiosInstance = axios.create({
-  // baseURL: "http://72.61.240.147/api/",
-  baseURL: "http://192.168.0.113:8000/api/",
+  baseURL: "http://72.61.240.147:8001/api/",
   // withCredentials: true,
 });
 

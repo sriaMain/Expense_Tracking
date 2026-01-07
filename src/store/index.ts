@@ -1,17 +1,19 @@
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from './slices/authSlice';
 import expenseReducer from './slices/expenseSlice';
-import employeeReducer from './slices/employeeSlice';
 import categoryReducer from './slices/categorySlice';
+import projectReducer from './slices/projectSlice';
 import userReducer from './slices/userSlice';
+import vendorReducer from './slices/vendorSlice';
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
     expense: expenseReducer,
-    employee: employeeReducer,
     category: categoryReducer,
+    project: projectReducer,
     users: userReducer,
+    vendor: vendorReducer,
   },
 });
 

@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/hooks/useAppDispatch';
-import { fetchExpenses } from '@/store/slices/expenseSlice';
-import { fetchEmployees } from '@/store/slices/employeeSlice';
+import { fetchAllExpensesAndRecurring } from '@/store/slices/expenseSlice';
+import { fetchVendors } from '@/store/slices/vendorSlice';
 import { Download, FileSpreadsheet, FileText, Calendar, Loader2, IndianRupee } from 'lucide-react';
 import { toast } from 'sonner';
 import axiosInstance from '@/lib/axiosInstance';
 
 const Reports = () => {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { expenses, isLoading: expensesLoading } = useAppSelector((state) => state.expense);
-  const { employees, isLoading: employeesLoading } = useAppSelector((state) => state.employee);
+  const { vendors, isLoading: vendorsLoading } = useAppSelector((state) => state.vendor);
 
   const [dateRange, setDateRange] = useState<'monthly' | 'custom' | 'today'>('monthly');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -17,14 +19,15 @@ const Reports = () => {
   const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
-    dispatch(fetchExpenses());
-    dispatch(fetchEmployees());
+    dispatch(fetchAllExpensesAndRecurring());
+    dispatch(fetchVendors());
   }, [dispatch]);
 
-  // Helper to get employee name
-  const getEmployeeName = (id: number) => {
-    const emp = employees.find(e => e.employee_id === id || e.id === id);
-    return emp?.employee_name || emp?.full_name || emp?.full_nmae || 'Unknown Employee';
+  // Helper to get vendor name
+  const getVendorName = (id: number | string) => {
+    if (typeof id === 'string') return id;
+    const vendor = vendors.find(v => v.id === id);
+    return vendor?.name || 'Unknown Vendor';
   };
 
   // Filter expenses based on date range
@@ -49,27 +52,14 @@ const Reports = () => {
   const paidAmount = filteredExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_paid), 0);
   const pendingAmount = totalAmount - paidAmount;
 
-  const getDatePayload = () => {
-    let start = '';
-    let end = '';
 
-    if (dateRange === 'monthly') {
-      const [year, month] = selectedMonth.split('-');
-      start = `${selectedMonth}-01`;
-      // Get last day of month
-      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-      end = `${selectedMonth}-${lastDay}`;
-    } else {
-      start = startDate;
-      end = endDate;
-    }
-    return { start_date: start, end_date: end };
-  };
 
   const downloadReport = async (type: 'excel' | 'pdf') => {
-    const { start_date, end_date } = getDatePayload();
-
-    if (!start_date || !end_date) {
+    if (dateRange === 'monthly' && !selectedMonth) {
+      toast.error('Please select a month');
+      return;
+    }
+    if (dateRange !== 'monthly' && (!startDate || !endDate)) {
       toast.error('Please select a valid date range');
       return;
     }
@@ -78,19 +68,42 @@ const Reports = () => {
 
     try {
       const endpoint = type === 'excel' ? 'reports/excel/' : 'reports/pdf/';
-      const response = await axiosInstance.post(endpoint, {
-        start_date,
-        end_date
-      }, {
-        responseType: 'blob' // Important for file download
-      });
+      let response;
+
+      if (dateRange === 'monthly') {
+        const [year, month] = selectedMonth.split('-');
+        response = await axiosInstance.get(endpoint, {
+          params: {
+            period: 'monthly',
+            year,
+            month: parseInt(month).toString()
+          },
+          responseType: 'blob'
+        });
+      } else {
+        response = await axiosInstance.post(endpoint, {
+          period: 'weekly',
+          week_start: startDate,
+          week_end: endDate
+        }, {
+          responseType: 'blob'
+        });
+      }
 
       // Create blob link to download
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
+
+      let filename = `expense_report_${type}`;
+      if (dateRange === 'monthly') {
+        filename += `_${selectedMonth}`;
+      } else {
+        filename += `_${startDate}_to_${endDate}`;
+      }
       const extension = type === 'excel' ? 'xlsx' : 'pdf';
-      link.setAttribute('download', `expense_report_${start_date}_to_${end_date}.${extension}`);
+
+      link.setAttribute('download', `${filename}.${extension}`);
       document.body.appendChild(link);
       link.click();
       link.parentNode?.removeChild(link);
@@ -105,19 +118,19 @@ const Reports = () => {
   const handleDownloadExcel = () => downloadReport('excel');
   const handleDownloadPDF = () => downloadReport('pdf');
 
-  // Vendor (Employee) summary
-  const vendorSummary = employees.map(emp => {
-    const empExpenses = filteredExpenses.filter(exp => exp.employee === emp.id);
+  // Vendor summary
+  const vendorSummary = vendors.map(vendor => {
+    const vendorExpenses = filteredExpenses.filter(exp => exp.vendor === vendor.id);
     return {
-      id: emp.id,
-      name: emp.employee_name || emp.full_name || emp.full_nmae || 'Unknown',
-      total: empExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_requested), 0),
-      paid: empExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_paid), 0),
-      count: empExpenses.length,
+      id: vendor.id,
+      name: vendor.name || 'Unknown',
+      total: vendorExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_requested), 0),
+      paid: vendorExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount_paid), 0),
+      count: vendorExpenses.length,
     };
   }).filter(v => v.count > 0);
 
-  if (expensesLoading || employeesLoading) {
+  if (expensesLoading || vendorsLoading) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -247,7 +260,7 @@ const Reports = () => {
             <thead className="bg-muted">
               <tr>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Date</th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Employee/Vendor</th>
+                <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Vendor</th>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Requested</th>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Paid</th>
                 <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">Status</th>
@@ -262,19 +275,23 @@ const Reports = () => {
                 </tr>
               ) : (
                 filteredExpenses.map((expense) => (
-                  <tr key={expense.id} className="table-row-hover border-b border-border last:border-0">
+                  <tr
+                    key={expense.id}
+                    onClick={() => navigate(`/expenses/${expense.id}`)}
+                    className="table-row-hover border-b border-border last:border-0 cursor-pointer"
+                  >
                     <td className="py-4 px-6 text-sm text-muted-foreground">{expense.created_at?.split('T')[0]}</td>
-                    <td className="py-4 px-6 text-sm font-medium text-foreground">{getEmployeeName(expense.employee)}</td>
+                    <td className="py-4 px-6 text-sm font-medium text-foreground">{getVendorName(expense.vendor)}</td>
                     <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</td>
                     <td className="py-4 px-6 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</td>
                     <td className="py-4 px-6">
                       <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
                         ? 'bg-success/10 text-success'
-                        : expense.status === 'PARTIAL'
+                        : (expense.status === 'PARTIAL' || expense.status === 'PARTIAL_PAID' || expense.status === 'PARTIALLY_PAID')
                           ? 'bg-warning/10 text-warning'
                           : 'bg-destructive/10 text-destructive'
                         }`}>
-                        {expense.status}
+                        {expense.status === 'PARTIAL_PAID' || expense.status === 'PARTIALLY_PAID' ? 'PARTIAL' : expense.status === 'UNPAID' ? 'PENDING' : expense.status}
                       </span>
                     </td>
                   </tr>
@@ -294,18 +311,22 @@ const Reports = () => {
           </div>
         ) : (
           filteredExpenses.map((expense) => (
-            <div key={expense.id} className="card-elevated p-4">
+            <div
+              key={expense.id}
+              onClick={() => navigate(`/expenses/${expense.id}`)}
+              className="card-elevated p-4 cursor-pointer"
+            >
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="font-medium text-foreground">{getEmployeeName(expense.employee)}</p>
+                  <p className="font-medium text-foreground">{getVendorName(expense.vendor)}</p>
                 </div>
                 <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
                   ? 'bg-success/10 text-success'
-                  : expense.status === 'PARTIAL'
+                  : (expense.status === 'PARTIAL' || expense.status === 'PARTIAL_PAID' || expense.status === 'PARTIALLY_PAID')
                     ? 'bg-warning/10 text-warning'
                     : 'bg-destructive/10 text-destructive'
                   }`}>
-                  {expense.status}
+                  {expense.status === 'PARTIAL_PAID' || expense.status === 'PARTIALLY_PAID' ? 'PARTIAL' : expense.status === 'UNPAID' ? 'PENDING' : expense.status}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">

@@ -83,7 +83,12 @@ const UsersPage = () => {
     if (!confirm(`Are you sure you want to ${action} ${user.username}?`)) return;
 
     try {
-      await dispatch(toggleUserStatus({ id: user.id, is_active: user.is_active })).unwrap();
+      await dispatch(toggleUserStatus({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        is_active: user.is_active
+      })).unwrap();
       toast.success(`${user.username} has been ${action}d`);
     } catch (error) {
       toast.error((error as string) || `Failed to ${action} user`);
