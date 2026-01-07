@@ -79,13 +79,12 @@ export const toggleUserStatus = createAsyncThunk(
         { rejectWithValue }
     ) => {
         try {
-            const action = is_active ? 'deactivate' : 'activate';
-
+            const newStatus = !is_active;
             await axiosInstance.put(`users/${id}/`, {
-                action
+                is_active: newStatus
             });
 
-            return { id, is_active: !is_active };
+            return { id, is_active: newStatus };
         } catch (error: any) {
             return rejectWithValue(
                 error.response?.data?.error ||

@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/hooks/useAppDispatch';
-import { fetchExpenses } from '@/store/slices/expenseSlice';
-import { fetchEmployees, fetchEmployeeExpenses } from '@/store/slices/employeeSlice';
+import { fetchAllExpensesAndRecurring } from '@/store/slices/expenseSlice';
+import { fetchVendors, fetchVendorExpenses } from '@/store/slices/vendorSlice';
 import {
   IndianRupee,
   TrendingUp,
@@ -22,31 +23,32 @@ import {
 } from 'recharts';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { expenses, isLoading: expensesLoading } = useAppSelector((state) => state.expense);
-  const { employees, isLoading: employeesLoading } = useAppSelector((state) => state.employee);
+  const { vendors, isLoading: vendorsLoading } = useAppSelector((state) => state.vendor);
 
   useEffect(() => {
-    dispatch(fetchExpenses());
-    dispatch(fetchEmployees());
+    dispatch(fetchAllExpensesAndRecurring());
+    dispatch(fetchVendors());
   }, [dispatch]);
 
-  // Fetch individual employee expenses when employees are loaded
+  // Fetch individual vendor expenses when vendors are loaded
   useEffect(() => {
-    if (employees.length > 0) {
-      employees.forEach(emp => {
-        const id = emp.employee_id || emp.id;
-        if (id) {
-          dispatch(fetchEmployeeExpenses(id));
+    if (vendors.length > 0) {
+      vendors.forEach(vendor => {
+        if (vendor.id) {
+          dispatch(fetchVendorExpenses(vendor.id));
         }
       });
     }
-  }, [dispatch, employees.map(e => e.employee_id || e.id).join(',')]);
+  }, [dispatch, vendors.map(v => v.id).join(',')]);
 
-  // Helper to get employee name
-  const getEmployeeName = (id: number) => {
-    const emp = employees.find(e => e.employee_id === id);
-    return emp?.employee_name || emp?.full_name || emp?.full_nmae || 'Unknown Employee';
+  // Helper to get vendor name
+  const getVendorName = (id: number | string) => {
+    if (typeof id === 'string') return id;
+    const vendor = vendors.find(v => v.id === id);
+    return vendor?.name || 'Unknown Vendor';
   };
 
   // Calculate totals
@@ -87,10 +89,10 @@ const Dashboard = () => {
 
   const monthlyData = getMonthlyData();
 
-  const vendorDistribution = employees.map((emp) => {
-    const totalRemaining = (emp.expenses || []).reduce((sum: number, exp) => sum + parseFloat(exp.remaining_amount || '0'), 0);
+  const vendorDistribution = vendors.map((vendor) => {
+    const totalRemaining = (vendor.expenses || []).reduce((sum: number, exp) => sum + parseFloat(exp.remaining_amount || '0'), 0);
     return {
-      name: emp.employee_name || emp.full_name || emp.full_nmae || 'Unknown',
+      name: vendor.name || 'Unknown',
       value: totalRemaining,
     };
   })
@@ -112,7 +114,7 @@ const Dashboard = () => {
   const totalChange = prevRef.current.totalExpenses === 0 ? 0 : ((totalExpenses - prevRef.current.totalExpenses) / prevRef.current.totalExpenses) * 100;
   const paidChange = prevRef.current.paidExpenses === 0 ? 0 : ((paidExpenses - prevRef.current.paidExpenses) / prevRef.current.paidExpenses) * 100;
   const pendingChange = prevRef.current.pendingExpenses === 0 ? 0 : ((pendingExpenses - prevRef.current.pendingExpenses) / prevRef.current.pendingExpenses) * 100;
-  const activeChange = prevRef.current.activeCount === 0 ? 0 : ((employees.length - prevRef.current.activeCount) / prevRef.current.activeCount) * 100;
+  const activeChange = prevRef.current.activeCount === 0 ? 0 : ((vendors.length - prevRef.current.activeCount) / prevRef.current.activeCount) * 100;
 
   const summaryCards = [
     {
@@ -143,8 +145,8 @@ const Dashboard = () => {
       iconColor: 'text-warning',
     },
     {
-      title: 'Active Employees/Vendors',
-      value: employees.length.toString(),
+      title: 'Active Vendors',
+      value: vendors.length.toString(),
       icon: Users,
       change: formatChange(activeChange),
       isPositive: activeChange >= 0,
@@ -158,11 +160,11 @@ const Dashboard = () => {
       totalExpenses,
       paidExpenses,
       pendingExpenses,
-      activeCount: employees.length,
+      activeCount: vendors.length,
     };
-  }, [totalExpenses, paidExpenses, pendingExpenses, employees.length]);
+  }, [totalExpenses, paidExpenses, pendingExpenses, vendors.length]);
 
-  if (expensesLoading || employeesLoading) {
+  if (expensesLoading || vendorsLoading) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -221,12 +223,12 @@ const Dashboard = () => {
         </div>
 
         <div className="card-elevated p-4 sm:p-6">
-          <h2 className="section-title">Top 5 Employee/Vendor Distribution</h2>
+          <h2 className="section-title">Top 5 Vendor Distribution</h2>
           <div className="flex flex-col items-center">
             <ResponsiveContainer width="100%" height={250}>
               {vendorDistribution.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
-                  <p className="text-sm text-muted-foreground">No employee expense data available</p>
+                  <p className="text-sm text-muted-foreground">No vendor expense data available</p>
                 </div>
               ) : (
                 <LineChart data={vendorDistribution} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -263,7 +265,7 @@ const Dashboard = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Employee/Vendor</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Vendor</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Requested</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Paid</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Remaining Amount</th>
@@ -277,19 +279,23 @@ const Dashboard = () => {
                 </tr>
               ) : (
                 sortedExpenses.slice(0, 5).map((expense) => (
-                  <tr key={expense.id} className="table-row-hover border-b border-border last:border-0">
-                    <td className="py-4 px-4 text-sm font-medium text-foreground">{getEmployeeName(expense.employee)}</td>
+                  <tr
+                    key={expense.id}
+                    onClick={() => navigate(`/expenses/${expense.id}`)}
+                    className="table-row-hover border-b border-border last:border-0 cursor-pointer"
+                  >
+                    <td className="py-4 px-4 text-sm font-medium text-foreground">{getVendorName(expense.vendor)}</td>
                     <td className="py-4 px-4 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_requested).toLocaleString()}</td>
                     <td className="py-4 px-4 text-sm font-semibold text-foreground">₹{parseFloat(expense.amount_paid).toLocaleString()}</td>
                     <td className="py-4 px-4 text-sm font-semibold text-foreground">₹{parseFloat(expense.remaining_amount).toLocaleString()}</td>
                     <td className="py-4 px-4">
                       <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
                         ? 'bg-success/10 text-success'
-                        : expense.status === 'PARTIAL'
+                        : (expense.status === 'PARTIAL' || expense.status === 'PARTIAL_PAID' || expense.status === 'PARTIALLY_PAID')
                           ? 'bg-warning/10 text-warning'
                           : 'bg-destructive/10 text-destructive'
                         }`}>
-                        {expense.status}
+                        {expense.status === 'PARTIAL_PAID' || expense.status === 'PARTIALLY_PAID' ? 'PARTIAL' : expense.status === 'UNPAID' ? 'PENDING' : expense.status}
                       </span>
                     </td>
                   </tr>
@@ -306,18 +312,22 @@ const Dashboard = () => {
           <p className="text-sm text-muted-foreground text-center py-4">No recent transactions</p>
         ) : (
           sortedExpenses.slice(0, 5).map((expense) => (
-            <div key={expense.id} className="card-elevated p-4">
+            <div
+              key={expense.id}
+              onClick={() => navigate(`/expenses/${expense.id}`)}
+              className="card-elevated p-4 cursor-pointer"
+            >
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="font-medium text-foreground">{getEmployeeName(expense.employee)}</p>
+                  <p className="font-medium text-foreground">{getVendorName(expense.vendor)}</p>
                 </div>
                 <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${expense.status === 'PAID'
                   ? 'bg-success/10 text-success'
-                  : expense.status === 'PARTIAL'
+                  : (expense.status === 'PARTIAL' || expense.status === 'PARTIAL_PAID' || expense.status === 'PARTIALLY_PAID')
                     ? 'bg-warning/10 text-warning'
                     : 'bg-destructive/10 text-destructive'
                   }`}>
-                  {expense.status}
+                  {expense.status === 'PARTIAL_PAID' || expense.status === 'PARTIALLY_PAID' ? 'PARTIAL' : expense.status === 'UNPAID' ? 'PENDING' : expense.status}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">

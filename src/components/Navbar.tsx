@@ -8,6 +8,7 @@ import {
   Receipt,
   FileBarChart,
   Users,
+  Store,
   LogOut,
   IndianRupee,
   Menu,
@@ -98,6 +99,7 @@ const Navbar = () => {
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/users', icon: Users, label: 'Users' },
     { to: '/expenses', icon: Receipt, label: 'Expenses' },
+    { to: '/vendors', icon: Store, label: 'Vendors' },
     { to: '/reports', icon: FileBarChart, label: 'Reports' },
   ];
 
@@ -125,19 +127,18 @@ const Navbar = () => {
   return (
     <>
       <nav className="sticky top-0 z-40 w-full bg-card border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-full px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center">
                 <IndianRupee className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="text-lg font-semibold text-foreground hidden sm:block">ExpenseFlow</span>
+              <span className="text-lg font-semibold text-foreground hidden sm:block">ExpenseTrack</span>
             </div>
 
-            {/* Desktop Navigation */}
+            {/* Desktop Navigation - Removed (Moved to Sidebar) */}
             <div className="hidden md:flex items-center gap-1">
-              <NavItems />
             </div>
 
             {/* User Info & Dropdown - Desktop */}
